@@ -24,15 +24,15 @@ cp .env.example .env
 
 Fill in `.env`:
 
-| Variable | Required | Notes |
-|---|---|---|
-| `TEMPO_API_TOKEN` | yes | Tempo API token (Tempo settings → API keys) |
-| `JIRA_BASE_URL` | no* | e.g. `https://yourco.atlassian.net` |
-| `JIRA_EMAIL` | no* | Atlassian account email |
-| `JIRA_API_TOKEN` | no* | Atlassian API token (id.atlassian.com) |
-| `DEFAULT_TIMEZONE` | no | IANA name; defaults to system TZ (e.g. `Asia/Ho_Chi_Minh`) |
-| `LOG_LEVEL` | no | `debug`, `info` (default), `warn`, `error` |
-| `WORKLOG_WRITE_ENABLED` | no | `false` (default) — writes disabled |
+| Variable                | Required | Notes                                                      |
+| ----------------------- | -------- | ---------------------------------------------------------- |
+| `TEMPO_API_TOKEN`       | yes      | Tempo API token (Tempo settings → API keys)                |
+| `JIRA_BASE_URL`         | no*      | e.g. `https://yourco.atlassian.net`                        |
+| `JIRA_EMAIL`            | no*      | Atlassian account email                                    |
+| `JIRA_API_TOKEN`        | no*      | Atlassian API token (id.atlassian.com)                     |
+| `DEFAULT_TIMEZONE`      | no       | IANA name; defaults to system TZ (e.g. `Asia/Ho_Chi_Minh`) |
+| `LOG_LEVEL`             | no       | `debug`, `info` (default), `warn`, `error`                 |
+| `WORKLOG_WRITE_ENABLED` | no       | `false` (default) — writes disabled                        |
 
 \* Jira is optional; if used, all three `JIRA_*` values must be set together.
 Jira is needed for `jira_search_issues` and to display issue keys (Tempo v4
@@ -95,13 +95,13 @@ do you have?" — the model should list them.
 
 ## Troubleshooting
 
-| Symptom | Cause / fix |
-|---|---|
-| `AUTH_ERROR` on every call | Bad/expired `TEMPO_API_TOKEN`, or wrong `TEMPO_BASE_URL` |
-| `CONFIG_ERROR: Jira is not configured` | Only some of the three `JIRA_*` vars set — set all three or none |
-| `WRITE_DISABLED` | Expected: set `WORKLOG_WRITE_ENABLED=true` to enable writes |
-| `APPROVAL_REQUIRED` on a write | Token expired (>15 min) or payload changed after preview — re-preview |
-| `UNCERTAIN_OUTCOME` | The write may or may not have landed — check `tempo_get_worklogs` for the date; never blind-retry |
-| `PERMISSION_ERROR` on search | Jira token lacks access to the projects in the JQL |
-| Issue keys shown as numeric ids | Jira not configured — set the three `JIRA_*` vars to enable key resolution |
-| Timezone looks wrong (off-by-one day) | Set `DEFAULT_TIMEZONE` to an IANA name |
+| Symptom                                | Cause / fix                                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `AUTH_ERROR` on every call             | Bad/expired `TEMPO_API_TOKEN`, or wrong `TEMPO_BASE_URL`                                          |
+| `CONFIG_ERROR: Jira is not configured` | Only some of the three `JIRA_*` vars set — set all three or none                                  |
+| `WRITE_DISABLED`                       | Expected: set `WORKLOG_WRITE_ENABLED=true` to enable writes                                       |
+| `APPROVAL_REQUIRED` on a write         | Token expired (>15 min) or payload changed after preview — re-preview                             |
+| `UNCERTAIN_OUTCOME`                    | The write may or may not have landed — check `tempo_get_worklogs` for the date; never blind-retry |
+| `PERMISSION_ERROR` on search           | Jira token lacks access to the projects in the JQL                                                |
+| Issue keys shown as numeric ids        | Jira not configured — set the three `JIRA_*` vars to enable key resolution                        |
+| Timezone looks wrong (off-by-one day)  | Set `DEFAULT_TIMEZONE` to an IANA name                                                            |

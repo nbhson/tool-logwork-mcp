@@ -11,17 +11,17 @@ explicit preview → approval → write pipeline — create or update worklogs.
 
 ## Tools (9)
 
-| Tool | Kind | Description |
-|---|---|---|
-| `tempo_get_worklogs` | read | Worklogs in a date range, optionally by user |
-| `tempo_get_worklog` | read | One worklog by id |
-| `tempo_get_week_summary` | read | Week (Mon–Sun) aggregated by day and issue |
-| `jira_search_issues` | read | Jira search via JQL (enhanced search API) |
-| `tempo_preview_worklog` | preview | Validate + duplicate-check a create/update; returns an approval token. Never writes |
-| `tempo_validate_worklog` | preview | Validate a proposal without issuing a token |
-| `tempo_check_duplicate` | preview | Confidence-scored duplicate check for a candidate entry |
-| `tempo_create_worklog` | write (gated) | Create a worklog; needs token + `confirm` |
-| `tempo_update_worklog` | write (gated) | Update a worklog; needs token + `confirm` |
+| Tool                     | Kind          | Description                                                                         |
+| ------------------------ | ------------- | ----------------------------------------------------------------------------------- |
+| `tempo_get_worklogs`     | read          | Worklogs in a date range, optionally by user                                        |
+| `tempo_get_worklog`      | read          | One worklog by id                                                                   |
+| `tempo_get_week_summary` | read          | Week (Mon–Sun) aggregated by day and issue                                          |
+| `jira_search_issues`     | read          | Jira search via JQL (enhanced search API)                                           |
+| `tempo_preview_worklog`  | preview       | Validate + duplicate-check a create/update; returns an approval token. Never writes |
+| `tempo_validate_worklog` | preview       | Validate a proposal without issuing a token                                         |
+| `tempo_check_duplicate`  | preview       | Confidence-scored duplicate check for a candidate entry                             |
+| `tempo_create_worklog`   | write (gated) | Create a worklog; needs token + `confirm`                                           |
+| `tempo_update_worklog`   | write (gated) | Update a worklog; needs token + `confirm`                                           |
 
 The write flow is: **preview → show the user → explicit approval → write with
 the same exact payload**. The approval token is bound to the SHA-256 of the
@@ -46,16 +46,16 @@ tempo-worklog-mcp
 The server reads configuration from environment variables. Create a `.env`
 file next to where you run it, or set them in your MCP client config.
 
-| Variable | Default | Description |
-|---|---|---|
-| `TEMPO_API_TOKEN` | — (required) | Tempo API token |
-| `TEMPO_BASE_URL` | `https://api.tempo.io` | Tempo v4 base URL |
-| `JIRA_BASE_URL` | — (optional) | `https://<site>.atlassian.net` |
-| `JIRA_EMAIL` | — (optional) | Atlassian account email |
-| `JIRA_API_TOKEN` | — (optional) | Atlassian API token |
-| `DEFAULT_TIMEZONE` | system TZ | IANA name, e.g. `Asia/Ho_Chi_Minh` |
-| `LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
-| `WORKLOG_WRITE_ENABLED` | `false` | Master switch for write tools |
+| Variable                | Default                | Description                            |
+| ----------------------- | ---------------------- | -------------------------------------- |
+| `TEMPO_API_TOKEN`       | — (required)           | Tempo API token                        |
+| `TEMPO_BASE_URL`        | `https://api.tempo.io` | Tempo v4 base URL                      |
+| `JIRA_BASE_URL`         | — (optional)           | `https://<site>.atlassian.net`         |
+| `JIRA_EMAIL`            | — (optional)           | Atlassian account email                |
+| `JIRA_API_TOKEN`        | — (optional)           | Atlassian API token                    |
+| `DEFAULT_TIMEZONE`      | system TZ              | IANA name, e.g. `Asia/Ho_Chi_Minh`     |
+| `LOG_LEVEL`             | `info`                 | `debug` \| `info` \| `warn` \| `error` |
+| `WORKLOG_WRITE_ENABLED` | `false`                | Master switch for write tools          |
 
 Jira is optional but recommended: Tempo v4 returns only numeric issue ids, so
 without Jira the tools cannot display issue keys. All three `JIRA_*` variables
@@ -108,7 +108,16 @@ claude mcp add tempo-worklog \
 ```
 
 It also ships an OpenCode agent skill and three slash commands (`.opencode/`
-in this package) — copy them into your project to get:
+in this package). After installing from npm, copy them into your project:
+
+```bash
+# OpenCode loads skills/commands from your project's .opencode/ directory
+mkdir -p .opencode/skills
+cp -r node_modules/tempo-worklog-mcp/.opencode/skills/tempo-timesheet .opencode/skills/
+cp -r node_modules/tempo-worklog-mcp/.opencode/commands ./
+```
+
+This gives you:
 
 - `.opencode/skills/tempo-timesheet/SKILL.md` — tool catalog + hard rules
   (preview-before-write, never retry uncertain writes, recorded-data-only

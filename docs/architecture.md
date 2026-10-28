@@ -99,17 +99,17 @@ Safety invariants implemented in `WorklogService`:
 
 ## Error model
 
-| Code | Meaning | Retry? |
-|---|---|---|
-| `VALIDATION_ERROR` | Bad input / 400 from API | No |
-| `AUTH_ERROR` | 401/403 — token or permission problem | No |
-| `NOT_FOUND` | 404 | No |
-| `RATE_LIMITED` | 429 (retried internally with Retry-After) | Auto (GET only) |
-| `NETWORK_ERROR` / `TIMEOUT` | Transport failure on reads | Auto (GET only) |
-| `UNCERTAIN_OUTCOME` | Write may or may not have landed | **Never — verify first** |
-| `WRITE_DISABLED` | `WORKLOG_WRITE_ENABLED=false` | N/A |
-| `APPROVAL_REQUIRED` | Missing/expired/mismatched approval token | Re-preview |
-| `CONFIG_ERROR` | Missing configuration | N/A |
+| Code                        | Meaning                                   | Retry?                   |
+| --------------------------- | ----------------------------------------- | ------------------------ |
+| `VALIDATION_ERROR`          | Bad input / 400 from API                  | No                       |
+| `AUTH_ERROR`                | 401/403 — token or permission problem     | No                       |
+| `NOT_FOUND`                 | 404                                       | No                       |
+| `RATE_LIMITED`              | 429 (retried internally with Retry-After) | Auto (GET only)          |
+| `NETWORK_ERROR` / `TIMEOUT` | Transport failure on reads                | Auto (GET only)          |
+| `UNCERTAIN_OUTCOME`         | Write may or may not have landed          | **Never — verify first** |
+| `WRITE_DISABLED`            | `WORKLOG_WRITE_ENABLED=false`             | N/A                      |
+| `APPROVAL_REQUIRED`         | Missing/expired/mismatched approval token | Re-preview               |
+| `CONFIG_ERROR`              | Missing configuration                     | N/A                      |
 
 ## Module map
 

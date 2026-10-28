@@ -49,11 +49,7 @@ export function mockFetch(
   routes: Array<{
     urlIncludes: string;
     method?: string;
-    respond: (call: {
-      url: string;
-      method: string;
-      body: string | null;
-    }) =>
+    respond: (call: { url: string; method: string; body: string | null }) =>
       | { status: number; json?: unknown; text?: string; headers?: Record<string, string> }
       | Promise<{
           status: number;

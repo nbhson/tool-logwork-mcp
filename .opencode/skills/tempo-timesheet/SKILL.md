@@ -10,17 +10,17 @@ Tempo v4 REST API and (when configured) the Jira Cloud v3 API.
 
 ## Tools
 
-| Tool | Purpose |
-|---|---|
-| `tempo_get_worklogs` | List recorded worklogs in a date range |
-| `tempo_get_worklog` | Fetch one worklog by id |
-| `tempo_get_week_summary` | Aggregate one week (Mon–Sun) by day and issue |
-| `jira_search_issues` | Search Jira issues via JQL (helps resolve issue keys) |
-| `tempo_preview_worklog` | Dry-run a create: validates, checks duplicates, returns an approval token |
-| `tempo_validate_worklog` | Validate a proposal without issuing an approval token |
-| `tempo_check_duplicate` | Check a proposal against existing worklogs for that issue/date |
-| `tempo_create_worklog` | Create a worklog (requires approval token + `confirm: true`) |
-| `tempo_update_worklog` | Update an existing worklog (requires approval token + `confirm: true`) |
+| Tool                     | Purpose                                                                   |
+| ------------------------ | ------------------------------------------------------------------------- |
+| `tempo_get_worklogs`     | List recorded worklogs in a date range                                    |
+| `tempo_get_worklog`      | Fetch one worklog by id                                                   |
+| `tempo_get_week_summary` | Aggregate one week (Mon–Sun) by day and issue                             |
+| `jira_search_issues`     | Search Jira issues via JQL (helps resolve issue keys)                     |
+| `tempo_preview_worklog`  | Dry-run a create: validates, checks duplicates, returns an approval token |
+| `tempo_validate_worklog` | Validate a proposal without issuing an approval token                     |
+| `tempo_check_duplicate`  | Check a proposal against existing worklogs for that issue/date            |
+| `tempo_create_worklog`   | Create a worklog (requires approval token + `confirm: true`)              |
+| `tempo_update_worklog`   | Update an existing worklog (requires approval token + `confirm: true`)    |
 
 ## Hard rules
 
@@ -54,6 +54,7 @@ work.
 without records.
 
 **Log new work:**
+
 1. `tempo_preview_worklog` with issueKey, date, durationMinutes, description.
 2. Show the user: resolved issue, computed seconds, duplicates found, warnings.
 3. If duplicates exist (especially `high` confidence), ask whether to proceed.
