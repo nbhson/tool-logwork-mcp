@@ -1,8 +1,15 @@
 # Setup for OpenCode
 
-## 1. Build the server
+## 1. Get the server
+
+**Option A — run from npm (recommended):** nothing to build; use
+`npx tempo-worklog-mcp` as the command in step 3.
+
+**Option B — from source:**
 
 ```bash
+git clone https://github.com/nbhson/tool-logwork-mcp
+cd tool-logwork-mcp
 npm install
 npm run build
 ```
@@ -41,7 +48,7 @@ Add to `.opencode/opencode.json` (project) or the global OpenCode config:
   "mcp": {
     "tempo-timesheet": {
       "type": "local",
-      "command": ["node", "D:/github/tool-logwork-mcp/dist/index.js"],
+      "command": ["npx", "tempo-worklog-mcp"],
       "environment": {
         "TEMPO_API_TOKEN": "your-token-here",
         "WORKLOG_WRITE_ENABLED": "false"
@@ -53,7 +60,8 @@ Add to `.opencode/opencode.json` (project) or the global OpenCode config:
 
 Notes:
 
-- Use an absolute path to `dist/index.js`.
+- `["npx", "tempo-worklog-mcp"]` runs the published npm package. If you built
+  from source, use `["node", "<absolute path>/dist/index.js"]` instead.
 - Credentials can live in the `environment` block or in a `.env` next to the
   server; the server reads dotenv from its working directory. Prefer the
   OpenCode `environment` block so one config file holds everything — but then

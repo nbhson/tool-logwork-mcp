@@ -1,12 +1,41 @@
 {
-  "name": "tempo-mcp",
+  "name": "tempo-worklog-mcp",
   "version": "0.1.0",
   "description": "Tempo Timesheet MCP Server - integrates Tempo Timesheets and Jira Cloud with MCP clients such as OpenCode",
   "type": "module",
-  "private": true,
   "license": "MIT",
+  "author": "nbhson",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nbhson/tool-logwork-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nbhson/tool-logwork-mcp/issues"
+  },
+  "homepage": "https://github.com/nbhson/tool-logwork-mcp#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "tempo",
+    "timesheet",
+    "worklog",
+    "jira",
+    "opencode",
+    "ai-agent",
+    "time-tracking"
+  ],
+  "files": [
+    "dist",
+    ".opencode",
+    ".env.example",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": "./dist/index.js"
+  },
   "bin": {
-    "tempo-mcp": "dist/index.js"
+    "tempo-worklog-mcp": "dist/index.js"
   },
   "main": "dist/index.js",
   "scripts": {
@@ -18,7 +47,8 @@
     "test:watch": "vitest",
     "lint": "eslint src tests",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "prepublishOnly": "npm run typecheck && npm run typecheck:test && npm run lint && npm test && npm run build"
   },
   "engines": {
     "node": ">=20"

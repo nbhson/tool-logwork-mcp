@@ -243,7 +243,7 @@ export class BaseClient {
     return Math.min(8000, 500 * 2 ** (attempt - 1));
   }
 
-  /** Removes expired tokens from view... placeholder anchor */
+  /** Detects Node's AbortSignal timeout errors (DOMException TimeoutError/AbortError). */
   private isAbortTimeout(error: unknown): boolean {
     return (
       error instanceof DOMException &&

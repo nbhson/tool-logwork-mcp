@@ -28,19 +28,23 @@ the same exact payload**. The approval token is bound to the SHA-256 of the
 payload, expires in 15 minutes, and is invalidated by any change. Writes that
 time out return `UNCERTAIN_OUTCOME` and are never retried by the server.
 
-## Quick start
+## Install
+
+**Run directly with npx (no installation):**
 
 ```bash
-npm install
-npm run build
-cp .env.example .env   # then fill in TEMPO_API_TOKEN (+ Jira if desired)
-node dist/index.js
+npx tempo-worklog-mcp
 ```
 
-Full setup for OpenCode (MCP registration, skill, commands, troubleshooting):
-[docs/setup-opencode.md](docs/setup-opencode.md).
+**Or install globally:**
 
-## Environment variables
+```bash
+npm install -g tempo-worklog-mcp
+tempo-worklog-mcp
+```
+
+The server reads configuration from environment variables. Create a `.env`
+file next to where you run it, or set them in your MCP client config.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -55,11 +59,56 @@ Full setup for OpenCode (MCP registration, skill, commands, troubleshooting):
 
 Jira is optional but recommended: Tempo v4 returns only numeric issue ids, so
 without Jira the tools cannot display issue keys. All three `JIRA_*` variables
-must be set together.
+must be set together. See `.env.example` for a ready-made template.
 
-## OpenCode integration
+## Quick start (from source)
 
-Ships with an agent skill and three slash commands:
+```bash
+git clone https://github.com/nbhson/tool-logwork-mcp
+cd tool-logwork-mcp
+npm install
+npm run build
+cp .env.example .env   # then fill in TEMPO_API_TOKEN (+ Jira if desired)
+node dist/index.js
+```
+
+Full setup for OpenCode (MCP registration, skill, commands, troubleshooting):
+[docs/setup-opencode.md](docs/setup-opencode.md).
+
+## Registering with MCP clients
+
+The server speaks MCP over stdio. Generic pattern — run
+`npx tempo-worklog-mcp` as the command and pass environment variables:
+
+**OpenCode** (`~/.config/opencode/opencode.json` or project `opencode.json`):
+
+```json
+{
+  "mcp": {
+    "tempo-worklog": {
+      "type": "local",
+      "command": ["npx", "tempo-worklog-mcp"],
+      "environment": {
+        "TEMPO_API_TOKEN": "your-tempo-token",
+        "JIRA_BASE_URL": "https://your-site.atlassian.net",
+        "JIRA_EMAIL": "you@example.com",
+        "JIRA_API_TOKEN": "your-jira-token"
+      }
+    }
+  }
+}
+```
+
+**Claude Code:**
+
+```bash
+claude mcp add tempo-worklog \
+  -e TEMPO_API_TOKEN=your-tempo-token \
+  -- npx tempo-worklog-mcp
+```
+
+It also ships an OpenCode agent skill and three slash commands (`.opencode/`
+in this package) — copy them into your project to get:
 
 - `.opencode/skills/tempo-timesheet/SKILL.md` — tool catalog + hard rules
   (preview-before-write, never retry uncertain writes, recorded-data-only
@@ -69,8 +118,7 @@ Ships with an agent skill and three slash commands:
 - `.opencode/commands/tempo-log.md` — `/tempo-log ABC-123 2h30m ...` with the
   approval ritual baked in.
 
-Register the server in OpenCode config (`mcp.tempo-timesheet.type = "local"`):
-see [docs/setup-opencode.md](docs/setup-opencode.md).
+Details: [docs/setup-opencode.md](docs/setup-opencode.md).
 
 ## Development
 
@@ -96,10 +144,11 @@ HTTP fully mocked, no credentials or network needed).
 - [docs/workflows.md](docs/workflows.md) — agent workflows (daily/weekly/logging/update)
 - [docs/setup-opencode.md](docs/setup-opencode.md) — OpenCode registration + troubleshooting
 
-The Vietnamese design documents at the repo root (`architecture.md`,
-`security.md`, `skills.md`, `structure.md`, `tools.md`, `workflow.md`) are the
-original design briefs this implementation follows; the `docs/` files above
-describe the implementation as built.
+The Vietnamese design documents in
+[docs/design/](docs/design/) (`architecture.md`, `security.md`, `skills.md`,
+`structure.md`, `tools.md`, `workflow.md`) are the original design briefs this
+implementation follows; the `docs/` files above describe the implementation
+as built.
 
 ## Known limitations
 
