@@ -84,7 +84,7 @@ export interface WorklogServiceDeps {
   tempo: TempoClient | null;
   jira: JiraClient | null;
   approvals: ApprovalService;
-  config: { timezone: string; writeEnabled: boolean; approvalTtlMs: number };
+  config: { timezone: string; writeEnabled: boolean; approvalTtlMs: number; tempoAccountId?: string | null };
   logger: Pick<Logger, 'info' | 'warn' | 'error'>;
 }
 
@@ -92,8 +92,9 @@ export class WorklogService {
   private readonly tempo: TempoClient | null;
   private readonly jira: JiraClient | null;
   private readonly approvals: ApprovalService;
-  private readonly config: { timezone: string; writeEnabled: boolean; approvalTtlMs: number };
+  private readonly config: { timezone: string; writeEnabled: boolean; approvalTtlMs: number; tempoAccountId?: string | null };
   private readonly logger: Pick<Logger, 'info' | 'warn' | 'error'>;
+  #authorAccountId: string | null = null;
   /** Short-lived LRU/TTL cache for Jira issue lookups (id/key -> issue). */
   private readonly issueCache = new TtlCache<string, JiraIssue>({
     ttlMs: DEFAULTS.issueCacheTtlMs,
@@ -114,17 +115,37 @@ export class WorklogService {
 
   /** Resolves a Jira issue key (or numeric id) to the Tempo numeric issueId. */
   async resolveIssue(issueKey: string): Promise<ResolvedIssue> {
-    const jira = this.requireJira();
-    const issue = await this.getIssueCached(jira, issueKey);
-    const issueId = Number(issue.id);
+    // Try Jira first if available
+    if (this.jira) {
+      try {
+        const issue = await this.getIssueCached(this.jira, issueKey);
+        const issueId = Number(issue.id);
+        if (Number.isInteger(issueId) && issueId > 0) {
+          return {
+            issueId,
+            issueKey: issue.key.toUpperCase(),
+            summary: issue.summary,
+            status: issue.status,
+          };
+        }
+      } catch (error) {
+        // Jira resolution failed - fall through to Tempo numeric ID
+        this.logger.warn('Jira resolution failed, falling back to Tempo numeric ID', {
+          issueKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    // Fallback: treat input as Tempo numeric issue ID
+    const issueId = Number(issueKey);
     if (!Number.isInteger(issueId) || issueId <= 0) {
       throw new ValidationError(`Issue "${issueKey}" did not resolve to a valid numeric issue id.`);
     }
     return {
       issueId,
-      issueKey: issue.key.toUpperCase(),
-      summary: issue.summary,
-      status: issue.status,
+      issueKey: `issue-${issueId}`,
+      summary: undefined,
+      status: undefined,
     };
   }
 
@@ -310,6 +331,28 @@ export class WorklogService {
   // Write (requires WORKLOG_WRITE_ENABLED=true + valid approval token)
   // ---------------------------------------------------------------------------
 
+  /** Lazy-loads and caches the authenticated user's Tempo account ID. */
+  private async getAuthorAccountId(): Promise<string> {
+    // Use explicitly configured account ID if available
+    if (this.config.tempoAccountId) return this.config.tempoAccountId;
+    if (this.#authorAccountId !== null) return this.#authorAccountId;
+    try {
+      const me = await this.tempo!.getMe();
+      const accountId = (me as Record<string, unknown>)?.accountId ?? (me as Record<string, unknown>)?.id;
+      if (accountId) {
+        this.#authorAccountId = String(accountId);
+        return this.#authorAccountId;
+      }
+    } catch (error) {
+      this.logger.warn('Could not auto-detect Tempo account ID', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    throw new ConfigError(
+      'TEMPO_ACCOUNT_ID is required for write operations. Set it in your environment (find your accountId from existing worklogs or Tempo Settings → API Integration).',
+    );
+  }
+
   async createWorklog(input: {
     issueKey: string;
     date: string;
@@ -343,9 +386,10 @@ export class WorklogService {
       input.description,
     );
 
+    const authorAccountId = await this.getAuthorAccountId();
     let created: TempoWorklog;
     try {
-      created = await tempo.createWorklog(createCreatePayload(resolved, proposal));
+      created = await tempo.createWorklog(createCreatePayload(resolved, proposal, authorAccountId));
     } catch (error) {
       throw uncertainIfTransient(error, 'create');
     }
@@ -397,15 +441,6 @@ export class WorklogService {
         'Write operations are disabled. Set WORKLOG_WRITE_ENABLED=true to allow writing worklogs.',
       );
     }
-  }
-
-  private requireJira(): JiraClient {
-    if (!this.jira) {
-      throw new ConfigError(
-        'Jira is not configured (JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN). Issue resolution and search require Jira access.',
-      );
-    }
-    return this.jira;
   }
 
   private async duplicatesForDate(
@@ -469,12 +504,14 @@ function createApprovalPayload(
 function createCreatePayload(
   resolved: ResolvedIssue,
   proposal: WorklogProposal,
+  authorAccountId?: string,
 ): CreateWorklogPayload {
   const payload: CreateWorklogPayload = {
     issueId: resolved.issueId,
     timeSpentSeconds: minutesToSeconds(proposal.durationMinutes),
     startDate: proposal.date,
     description: proposal.description,
+    authorAccountId,
   };
   if (proposal.startTime !== undefined) payload.startTime = proposal.startTime;
   return payload;

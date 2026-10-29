@@ -90,8 +90,20 @@ export const worklogProposalSchema = z.object({
 export const previewWorklogInputSchema = z.discriminatedUnion('operation', [
   z.object({
     operation: z.literal('create'),
-    proposal: worklogProposalSchema,
-  }),
+    proposal: worklogProposalSchema.optional(),
+    // Flattened fallback (OpenCode compat): issueKey, date, durationMinutes, description
+    issueKey: issueKeySchema.optional(),
+    date: isoDateSchema.optional(),
+    durationMinutes: durationMinutesSchema.optional(),
+    description: descriptionSchema.optional(),
+    startTime: startTimeSchema.optional(),
+  }).refine(
+    (data) => data.proposal !== undefined || (data.issueKey && data.date),
+    {
+      message:
+        'create: either provide proposal {issueKey, date, durationMinutes, description} or flattened fields.',
+    },
+  ),
   z.object({
     operation: z.literal('update'),
     worklogId: z.number().int().positive(),

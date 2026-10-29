@@ -43,7 +43,7 @@ function makeService(opts?: {
       logger: silentLogger,
     }),
     approvals,
-    config: { timezone: 'UTC', writeEnabled: opts?.writeEnabled ?? false, approvalTtlMs: 60_000 },
+    config: { timezone: 'UTC', writeEnabled: opts?.writeEnabled ?? false, approvalTtlMs: 60_000, tempoAccountId: 'test-account-id' },
     logger: silentLogger,
   });
   return { service, approvals, calls: [...tempoMock.calls, ...jiraMock.calls] };

@@ -3,7 +3,7 @@
 ## 1. Get the server
 
 **Option A — run from npm (recommended):** nothing to build; use
-`npx tempo-worklog-mcp` as the command in step 3.
+`npx -y s-tempo-worklog-mcp` as the command in step 3.
 
 **Option B — from source:**
 
@@ -27,6 +27,7 @@ Fill in `.env`:
 | Variable                | Required | Notes                                                      |
 | ----------------------- | -------- | ---------------------------------------------------------- |
 | `TEMPO_API_TOKEN`       | yes      | Tempo API token (Tempo settings → API keys)                |
+| `TEMPO_ACCOUNT_ID`      | yes (writes) | Your Tempo accountId. Find from `tempo_get_worklogs` → `authorAccountId`, or Tempo Settings. Auto-detected via `GET /accounts` when available. |
 | `JIRA_BASE_URL`         | no*      | e.g. `https://yourco.atlassian.net`                        |
 | `JIRA_EMAIL`            | no*      | Atlassian account email                                    |
 | `JIRA_API_TOKEN`        | no*      | Atlassian API token (id.atlassian.com)                     |
@@ -48,7 +49,7 @@ Add to `.opencode/opencode.json` (project) or the global OpenCode config:
   "mcp": {
     "tempo-timesheet": {
       "type": "local",
-      "command": ["npx", "tempo-worklog-mcp"],
+      "command": ["npx", "-y", "s-tempo-worklog-mcp"],
       "environment": {
         "TEMPO_API_TOKEN": "your-token-here",
         "WORKLOG_WRITE_ENABLED": "false"
@@ -60,7 +61,7 @@ Add to `.opencode/opencode.json` (project) or the global OpenCode config:
 
 Notes:
 
-- `["npx", "tempo-worklog-mcp"]` runs the published npm package. If you built
+- `["npx", "-y", "s-tempo-worklog-mcp"]` runs the published npm package. If you built
   from source, use `["node", "<absolute path>/dist/index.js"]` instead.
 - Credentials can live in the `environment` block or in a `.env` next to the
   server; the server reads dotenv from its working directory. Prefer the
@@ -103,5 +104,6 @@ do you have?" — the model should list them.
 | `APPROVAL_REQUIRED` on a write         | Token expired (>15 min) or payload changed after preview — re-preview                             |
 | `UNCERTAIN_OUTCOME`                    | The write may or may not have landed — check `tempo_get_worklogs` for the date; never blind-retry |
 | `PERMISSION_ERROR` on search           | Jira token lacks access to the projects in the JQL                                                |
-| Issue keys shown as numeric ids        | Jira not configured — set the three `JIRA_*` vars to enable key resolution                        |
+| Issue keys shown as `issue-{id}`       | Jira unavailable (expired token / not configured) — falls back to Tempo numeric ID; fix Jira creds to restore keys |
+| `CONFIG_ERROR: TEMPO_ACCOUNT_ID is required` | Write operations need your Tempo accountId — set `TEMPO_ACCOUNT_ID` in env (find from existing worklogs) |
 | Timezone looks wrong (off-by-one day)  | Set `DEFAULT_TIMEZONE` to an IANA name                                                            |

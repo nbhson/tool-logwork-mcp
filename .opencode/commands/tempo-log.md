@@ -8,7 +8,8 @@ login bug"). If parts are missing, ask for them; never guess the issue key.
 
 1. Parse the arguments into: issueKey, date (default today), duration (accept
    "1h30m", "90m", or "1.5h"), and description (required).
-2. Call `tempo_preview_worklog` (operation="create") with those values.
+2. Call `tempo_preview_worklog` with flattened create args:
+   `{ operation: "create", issueKey, date, durationMinutes, description }`.
 3. Present the preview to the user:
    - resolved issue (key, summary, status);
    - date, duration, computed timeSpentSeconds, description;

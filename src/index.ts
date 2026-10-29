@@ -32,6 +32,7 @@ async function main(): Promise<void> {
     // configuration error as an actionable response per tool call.
     config = {
       tempoApiToken: null,
+      tempoAccountId: null,
       tempoBaseUrl: 'https://api.tempo.io',
       jiraBaseUrl: null,
       jiraEmail: null,
@@ -77,6 +78,7 @@ async function main(): Promise<void> {
       timezone: config.timezone,
       writeEnabled: config.writeEnabled,
       approvalTtlMs: DEFAULTS.approvalTtlMs,
+      tempoAccountId: config.tempoAccountId,
     },
     logger,
   });

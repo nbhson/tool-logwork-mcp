@@ -149,6 +149,21 @@ export class TempoClient extends BaseClient {
     );
   }
 
+  /**
+   * Returns the authenticated user's Tempo account info.
+   * Tries GET /accounts (paginated) to find the calling user.
+   */
+  async getMe(): Promise<Record<string, unknown>> {
+    const accounts = await this.request<PaginatedResponse<{ accountId?: string; id?: string }>>(
+      '/accounts',
+      {
+        headers: this.authHeaders(),
+        query: { limit: 1 },
+      },
+    );
+    return ((accounts.results?.[0] ?? accounts) as unknown) as Record<string, unknown>;
+  }
+
   async updateWorklog(worklogId: number, payload: UpdateWorklogPayload): Promise<TempoWorklog> {
     return this.request<TempoWorklog>(
       `/worklogs/${encodeURIComponent(String(worklogId))}`,

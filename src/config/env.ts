@@ -5,6 +5,8 @@ import { assertValidTimezone } from '../utils/date.js';
 
 export interface AppConfig {
   tempoApiToken: string | null;
+  /** Explicit Tempo account ID to use for write operations (when auto-detection fails). */
+  tempoAccountId: string | null;
   tempoBaseUrl: string;
   jiraBaseUrl: string | null;
   jiraEmail: string | null;
@@ -26,6 +28,7 @@ export function loadConfig(options: LoadConfigOptions = {}): AppConfig {
   const env = options.env ?? process.env;
 
   const tempoApiToken = emptyToNull(env.TEMPO_API_TOKEN);
+  const tempoAccountId = emptyToNull(env.TEMPO_ACCOUNT_ID);
   const jiraBaseUrl = emptyToNull(env.JIRA_BASE_URL);
   const jiraEmail = emptyToNull(env.JIRA_EMAIL);
   const jiraApiToken = emptyToNull(env.JIRA_API_TOKEN);
@@ -66,6 +69,7 @@ export function loadConfig(options: LoadConfigOptions = {}): AppConfig {
 
   return {
     tempoApiToken,
+    tempoAccountId,
     tempoBaseUrl: (emptyToNull(env.TEMPO_BASE_URL) ?? DEFAULTS.tempoBaseUrl).replace(/\/+$/, ''),
     jiraBaseUrl,
     jiraEmail,
