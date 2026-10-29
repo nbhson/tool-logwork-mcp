@@ -1,6 +1,6 @@
 {
   "name": "s-tempo-worklog-mcp",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Tempo Timesheet MCP Server - integrates Tempo Timesheets and Jira Cloud with MCP clients such as OpenCode",
   "type": "module",
   "license": "MIT",
