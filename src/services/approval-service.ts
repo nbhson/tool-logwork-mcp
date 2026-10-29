@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { DEFAULTS } from '../config/constants.js';
 import { ApprovalRequiredError } from '../utils/errors.js';
 
 /**
@@ -35,7 +36,7 @@ export class ApprovalService {
   private readonly nowFn: () => number;
 
   constructor(opts: { ttlMs?: number; nowFn?: () => number } = {}) {
-    this.ttlMs = opts.ttlMs ?? 15 * 60_000;
+    this.ttlMs = opts.ttlMs ?? DEFAULTS.approvalTtlMs;
     this.nowFn = opts.nowFn ?? (() => Date.now());
   }
 

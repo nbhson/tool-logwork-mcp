@@ -1,4 +1,6 @@
 import { DEFAULTS } from '../config/constants.js';
+import type { ZodType } from 'zod';
+import { ResponseValidationError } from '../utils/errors.js';
 import {
   ApiError,
   AppError,
@@ -83,7 +85,11 @@ export class BaseClient {
     this.logger = opts.logger ?? defaultLogger;
   }
 
-  protected async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  protected async request<T>(
+    path: string,
+    options: RequestOptions = {},
+    schema?: ZodType<T>,
+  ): Promise<T> {
     const method = options.method ?? 'GET';
     const url = this.buildUrl(path, options.query);
     const idempotent = method === 'GET' || options.idempotent === true;
@@ -113,7 +119,9 @@ export class BaseClient {
       }
 
       if (response.ok) {
-        return (await this.parseJson(response)) as T;
+        const parsed = await this.parseJson(response);
+        if (schema) return this.validateResponse(parsed, schema, url);
+        return parsed as T;
       }
 
       const shouldRetry =
@@ -185,6 +193,27 @@ export class BaseClient {
         { bodySnippet: text.slice(0, MAX_BODY_SNIPPET) },
       );
     }
+  }
+
+  /**
+   * Validates a parsed JSON payload against a zod schema. A mismatch means the
+   * API contract changed (or a proxy mangled the response): instead of returning
+   * wrongly-shaped data downstream, throw a structured RESPONSE_INVALID error.
+   */
+  private validateResponse<T>(data: unknown, schema: ZodType<T>, url: string): T {
+    const result = schema.safeParse(data);
+    if (!result.success) {
+      const issues = result.error.issues.map((issue) => ({
+        path: issue.path.map(String).join('.') || '(root)',
+        message: issue.message,
+      }));
+      throw new ResponseValidationError(
+        `Response from ${this.safeUrl(url)} did not match the expected schema ` +
+          `(${issues.length} issue${issues.length === 1 ? '' : 's'}; first: ${issues[0]?.path}: ${issues[0]?.message}).`,
+        { issues: issues.slice(0, 10) },
+      );
+    }
+    return result.data;
   }
 
   private mapStatusError(response: Response, url: string, snippet: string): AppError {

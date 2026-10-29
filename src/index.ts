@@ -4,6 +4,8 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { jiraConfigured, loadConfig } from './config/env.js';
 import type { AppConfig } from './config/env.js';
+import { DEFAULTS } from './config/constants.js';
+import { SERVER_VERSION } from './config/version.js';
 import { JiraClient } from './clients/jira-client.js';
 import { TempoClient } from './clients/tempo-client.js';
 import { ApprovalService } from './services/approval-service.js';
@@ -74,7 +76,7 @@ async function main(): Promise<void> {
     config: {
       timezone: config.timezone,
       writeEnabled: config.writeEnabled,
-      approvalTtlMs: 15 * 60_000,
+      approvalTtlMs: DEFAULTS.approvalTtlMs,
     },
     logger,
   });
@@ -82,7 +84,7 @@ async function main(): Promise<void> {
   const server = new McpServer(
     {
       name: 'tempo-timesheet-mcp',
-      version: '0.1.0',
+      version: SERVER_VERSION,
     },
     {
       instructions:

@@ -1,6 +1,8 @@
 import type { JiraClient } from '../clients/jira-client.js';
 import type { TempoClient, TempoWorklog } from '../clients/tempo-client.js';
+import { DEFAULTS } from '../config/constants.js';
 import { minutesToSeconds, secondsToMinutes } from '../utils/duration.js';
+import { TtlCache } from '../utils/ttl-cache.js';
 import {
   ConfigError,
   NetworkError,
@@ -14,6 +16,7 @@ import { requireApproval, type ApprovalService } from './approval-service.js';
 import { validateWorklogProposal } from './validation-service.js';
 import type { WorklogProposal } from '../schemas/worklog.schema.js';
 import type { CreateWorklogPayload } from '../clients/tempo-client.js';
+import type { JiraIssue } from '../clients/jira-client.js';
 
 /**
  * Orchestrates the worklog lifecycle:
@@ -91,6 +94,11 @@ export class WorklogService {
   private readonly approvals: ApprovalService;
   private readonly config: { timezone: string; writeEnabled: boolean; approvalTtlMs: number };
   private readonly logger: Pick<Logger, 'info' | 'warn' | 'error'>;
+  /** Short-lived LRU/TTL cache for Jira issue lookups (id/key -> issue). */
+  private readonly issueCache = new TtlCache<string, JiraIssue>({
+    ttlMs: DEFAULTS.issueCacheTtlMs,
+    maxEntries: DEFAULTS.issueCacheMaxEntries,
+  });
 
   constructor(deps: WorklogServiceDeps) {
     this.tempo = deps.tempo;
@@ -107,7 +115,7 @@ export class WorklogService {
   /** Resolves a Jira issue key (or numeric id) to the Tempo numeric issueId. */
   async resolveIssue(issueKey: string): Promise<ResolvedIssue> {
     const jira = this.requireJira();
-    const issue = await jira.getIssue(issueKey);
+    const issue = await this.getIssueCached(jira, issueKey);
     const issueId = Number(issue.id);
     if (!Number.isInteger(issueId) || issueId <= 0) {
       throw new ValidationError(`Issue "${issueKey}" did not resolve to a valid numeric issue id.`);
@@ -120,22 +128,71 @@ export class WorklogService {
     };
   }
 
-  /** Resolves Jira keys for display; missing credentials degrade to an empty map. */
+  /**
+   * Resolves Jira keys for display; missing credentials degrade to an empty map.
+   *
+   * Uses ONE bulk JQL fetch (`id in (...)`) per chunk instead of one getIssue
+   * call per issue id (the old N+1 behavior), plus the short-lived issue cache.
+   * Behavior is unchanged: ids are deduped and capped at 100, and ids that
+   * cannot be resolved are logged and skipped (never fail the tool call).
+   */
   async resolveIssueKeys(issueIds: number[]): Promise<Map<number, string>> {
     const map = new Map<number, string>();
-    if (!this.jira || issueIds.length === 0) return map;
-    for (const id of [...new Set(issueIds)].slice(0, 100)) {
-      try {
-        const issue = await this.jira.getIssue(String(id));
+    if (!this.jira) return map;
+    const ids = [...new Set(issueIds)].slice(0, 100);
+    if (ids.length === 0) return map;
+
+    const missing = ids.filter((id) => this.issueCache.get(String(id)) === undefined);
+    if (missing.length > 0) {
+      await this.bulkFetchIssues(this.jira, missing);
+    }
+
+    for (const id of ids) {
+      const issue = this.issueCache.get(String(id));
+      if (issue?.key) {
         map.set(id, issue.key.toUpperCase());
+      } else {
+        this.logger.warn('Could not resolve issue key', { issueId: id });
+      }
+    }
+    return map;
+  }
+
+  /** Cached single-issue lookup: avoids repeated HTTP calls within the TTL window. */
+  private async getIssueCached(jira: JiraClient, keyOrId: string): Promise<JiraIssue> {
+    const cached = this.issueCache.get(keyOrId);
+    if (cached) return cached;
+    const issue = await jira.getIssue(keyOrId);
+    this.issueCache.set(keyOrId, issue);
+    // Also index by id and key so later lookups by either identifier hit the cache.
+    this.issueCache.set(issue.id, issue);
+    if (issue.key) this.issueCache.set(issue.key.toUpperCase(), issue);
+    return issue;
+  }
+
+  /**
+   * Fetches a batch of issues with one `id in (...)` JQL search per chunk and
+   * primes the cache. Individual failures degrade to a warning, matching the
+   * previous per-id error handling.
+   */
+  private async bulkFetchIssues(jira: JiraClient, ids: number[]): Promise<void> {
+    const chunkSize = DEFAULTS.jiraBulkResolveChunkSize;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const jql = `id in (${chunk.map((id) => `"${id}"`).join(', ')})`;
+      try {
+        const { issues } = await jira.searchIssues({ jql, maxResults: chunk.length });
+        for (const issue of issues) {
+          this.issueCache.set(issue.id, issue);
+          if (issue.key) this.issueCache.set(issue.key.toUpperCase(), issue);
+        }
       } catch (error) {
-        this.logger.warn('Could not resolve issue key', {
-          issueId: id,
+        this.logger.warn('Bulk issue resolution failed for a chunk', {
+          chunkSize: chunk.length,
           error: error instanceof Error ? error.message : String(error),
         });
       }
     }
-    return map;
   }
 
   /** Existing worklogs for one issue on one date (used by duplicate detection). */
@@ -370,7 +427,7 @@ export class WorklogService {
   private async issueForWorklog(worklog: TempoWorklog) {
     if (!this.jira) return null;
     try {
-      return await this.jira.getIssue(String(worklog.issue.id));
+      return await this.getIssueCached(this.jira, String(worklog.issue.id));
     } catch {
       return null;
     }

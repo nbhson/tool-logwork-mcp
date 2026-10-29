@@ -17,6 +17,11 @@ export const DEFAULTS = {
   defaultMaxResults: 500,
   /** HTTP statuses considered safe to retry with backoff (idempotent requests only). */
   retryableStatuses: [429, 500, 502, 503, 504],
+  /** Short-lived cache for resolved Jira issues (getIssue results). */
+  issueCacheTtlMs: 5 * 60_000,
+  issueCacheMaxEntries: 200,
+  /** Max issue ids per bulk `id in (...)` JQL resolution request. */
+  jiraBulkResolveChunkSize: 50,
 } as const;
 
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;

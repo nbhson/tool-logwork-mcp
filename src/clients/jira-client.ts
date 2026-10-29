@@ -1,5 +1,9 @@
 import { BaseClient, type FetchLike, type RetryLogger } from './base-client.js';
 import { DEFAULTS } from '../config/constants.js';
+import {
+  jiraEnhancedSearchResponseSchema,
+  jiraIssueRawSchema,
+} from '../schemas/api-response.schema.js';
 
 /**
  * Jira Cloud REST API v3 client (read-only usage in this MVP).
@@ -76,6 +80,7 @@ export class JiraClient extends BaseClient {
         query: { fields: SEARCH_FIELDS.join(',') },
         headers: this.authHeaders(),
       },
+      jiraIssueRawSchema,
     );
     return normalizeIssue(raw);
   }
@@ -98,11 +103,15 @@ export class JiraClient extends BaseClient {
       };
       if (nextPageToken !== undefined) body.nextPageToken = nextPageToken;
 
-      const response = await this.request<EnhancedSearchResponse>('/rest/api/3/search/jql', {
-        method: 'POST',
-        body,
-        headers: this.authHeaders(),
-      });
+      const response = await this.request<EnhancedSearchResponse>(
+        '/rest/api/3/search/jql',
+        {
+          method: 'POST',
+          body,
+          headers: this.authHeaders(),
+        },
+        jiraEnhancedSearchResponseSchema,
+      );
 
       for (const raw of response.issues ?? []) {
         issues.push(normalizeIssue(raw));

@@ -17,6 +17,7 @@ export type ErrorCode =
   | 'APPROVAL_REQUIRED'
   | 'CONFIG_ERROR'
   | 'UNCERTAIN_OUTCOME'
+  | 'RESPONSE_INVALID'
   | 'INTERNAL_ERROR';
 
 export class AppError extends Error {
@@ -117,5 +118,15 @@ export class UncertainOutcomeError extends AppError {
 export class InternalError extends AppError {
   constructor(message: string) {
     super('INTERNAL_ERROR', message);
+  }
+}
+
+/**
+ * Thrown when an API response parses as JSON but does not match the expected
+ * runtime (zod) schema. Carries the zod issues in `details` for diagnostics.
+ */
+export class ResponseValidationError extends AppError {
+  constructor(message: string, details?: unknown) {
+    super('RESPONSE_INVALID', message, undefined, details);
   }
 }

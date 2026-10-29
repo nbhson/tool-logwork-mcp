@@ -1,5 +1,6 @@
 import { BaseClient, PaginatedResponse, type FetchLike, type RetryLogger } from './base-client.js';
 import { DEFAULTS } from '../config/constants.js';
+import { tempoWorklogPageSchema, tempoWorklogSchema } from '../schemas/api-response.schema.js';
 
 /**
  * Tempo Timesheets REST API v4 client.
@@ -129,25 +130,35 @@ export class TempoClient extends BaseClient {
   }
 
   async getWorklog(id: number): Promise<TempoWorklog> {
-    return this.request<TempoWorklog>(`/worklogs/${encodeURIComponent(String(id))}`, {
-      headers: this.authHeaders(),
-    });
+    return this.request<TempoWorklog>(
+      `/worklogs/${encodeURIComponent(String(id))}`,
+      { headers: this.authHeaders() },
+      tempoWorklogSchema,
+    );
   }
 
   async createWorklog(payload: CreateWorklogPayload): Promise<TempoWorklog> {
-    return this.request<TempoWorklog>('/worklogs', {
-      method: 'POST',
-      body: payload,
-      headers: this.authHeaders(),
-    });
+    return this.request<TempoWorklog>(
+      '/worklogs',
+      {
+        method: 'POST',
+        body: payload,
+        headers: this.authHeaders(),
+      },
+      tempoWorklogSchema,
+    );
   }
 
   async updateWorklog(worklogId: number, payload: UpdateWorklogPayload): Promise<TempoWorklog> {
-    return this.request<TempoWorklog>(`/worklogs/${encodeURIComponent(String(worklogId))}`, {
-      method: 'PUT',
-      body: payload,
-      headers: this.authHeaders(),
-    });
+    return this.request<TempoWorklog>(
+      `/worklogs/${encodeURIComponent(String(worklogId))}`,
+      {
+        method: 'PUT',
+        body: payload,
+        headers: this.authHeaders(),
+      },
+      tempoWorklogSchema,
+    );
   }
 
   private authHeaders(): Record<string, string> {
@@ -163,14 +174,18 @@ export class TempoClient extends BaseClient {
     let offset = 0;
 
     for (let page = 0; page < DEFAULTS.tempoMaxPages; page++) {
-      const response = await this.request<PaginatedResponse<TempoWorklog>>(path, {
-        // WorklogPageQuery fields are all compatible; the cast silences TS's strict index-signature check.
-        query: buildQuery(offset) as unknown as Record<
-          string,
-          string | number | readonly string[] | undefined
-        >,
-        headers: this.authHeaders(),
-      });
+      const response = await this.request<PaginatedResponse<TempoWorklog>>(
+        path,
+        {
+          // WorklogPageQuery fields are all compatible; the cast silences TS's strict index-signature check.
+          query: buildQuery(offset) as unknown as Record<
+            string,
+            string | number | readonly string[] | undefined
+          >,
+          headers: this.authHeaders(),
+        },
+        tempoWorklogPageSchema,
+      );
       collected.push(...response.results);
 
       const hasMore = this.pageHasMore(response, offset);

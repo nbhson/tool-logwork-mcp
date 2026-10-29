@@ -17,7 +17,7 @@ function client(fetchFn: (url: string, init: RequestInit) => Promise<Response>) 
 
 const silentLogger = { debug: () => undefined, warn: () => undefined };
 
-function worklog(id: number, date: string, seconds = 3600, issueId = 100) {
+function worklog(id: number, date = '2026-10-26', seconds = 3600, issueId = 100) {
   return {
     tempoWorklogId: id,
     issue: { id: issueId },
