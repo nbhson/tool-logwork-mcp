@@ -10,25 +10,25 @@ Tempo v4 REST API and (when configured) the Jira Cloud v3 API.
 
 ## Tools
 
-| Tool                     | Purpose                                                                   |
-| ------------------------ | ------------------------------------------------------------------------- |
-| `tempo_get_worklogs`     | List recorded worklogs in a date range                                    |
-| `tempo_get_worklog`      | Fetch one worklog by id                                                   |
-| `tempo_get_week_summary` | Aggregate one week (Mon–Sun) by day and issue                             |
-| `jira_search_issues`     | Search Jira issues via JQL (helps resolve issue keys)                     |
-| `tempo_preview_worklog`  | Dry-run a create: validates, checks duplicates, returns an approval token |
-| `tempo_validate_worklog` | Validate a proposal without issuing an approval token                     |
-| `tempo_check_duplicate`  | Check a proposal against existing worklogs for that issue/date            |
-| `tempo_create_worklog`   | Create a worklog (requires approval token + `confirm: true`)              |
-| `tempo_update_worklog`   | Update an existing worklog (requires approval token + `confirm: true`)    |
+| Tool                     | Purpose                                                                            |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| `tempo_get_worklogs`     | List recorded worklogs in a date range (scoped to the caller's account by default) |
+| `tempo_get_worklog`      | Fetch one worklog by id                                                            |
+| `tempo_get_week_summary` | Aggregate one week (Mon–Sun) by day and issue                                      |
+| `jira_search_issues`     | Search Jira issues via JQL (helps resolve issue keys)                              |
+| `tempo_preview_worklog`  | Dry-run a create: validates, checks duplicates, returns an approval token          |
+| `tempo_validate_worklog` | Validate a proposal without issuing an approval token                              |
+| `tempo_check_duplicate`  | Check a proposal against existing worklogs for that issue/date                     |
+| `tempo_create_worklog`   | Create a worklog (requires approval token + `confirm: true`)                       |
+| `tempo_update_worklog`   | Update an existing worklog (requires approval token + `confirm: true`)             |
 
 ## Hard rules
 
 1. **Never call `tempo_create_worklog` or `tempo_update_worklog` without a
-   fresh preview.** The approval token is bound to the exact payload — if the
-   user changes anything (issue, date, duration, description), you MUST run
-   `tempo_preview_worklog` again to get a new token. Reusing a token after any
-   change fails by design.
+   fresh preview.** The approval token is bound to the exact payload (by
+   numeric issueId) — if the user changes anything (issue, date, duration,
+   description), you MUST run `tempo_preview_worklog` again to get a new
+   token. Reusing a token after any change fails by design.
 2. **Pass `confirm: true` only after the user has approved the preview.** Show
    the preview (issue, date, duration, duplicates) and ask. Do not treat
    silence as approval.
@@ -37,7 +37,13 @@ Tempo v4 REST API and (when configured) the Jira Cloud v3 API.
 4. **Never retry an uncertain write.** If a create/update returns
    `UNCERTAIN_OUTCOME`, the result is unknown. Check with `tempo_get_worklogs`
    for the affected date and report to the user before doing anything else.
+   A clean (non-uncertain) failure keeps the token valid: the user may retry
+   deliberately with the SAME payload without a new preview.
 5. **Never delete worklogs.** The server has no delete tool by design.
+6. **Read tools are scoped to the caller's account by default.** Pass an
+   explicit `authorAccountId` only when the user asks to inspect another
+   user's logs; when the tool response reports unfiltered results
+   (`authorScope: null`), say so — totals may include other users' worklogs.
 
 ## Summaries use recorded data only
 

@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import type { z } from 'zod';
 import { jsonHandler, type ToolContext } from '../context.js';
 import { updateWorklogInputSchema } from '../../schemas/worklog.schema.js';
+import { WriteDisabledError } from '../../utils/errors.js';
 
 /**
  * Write tool (update). Same gates as create: writes enabled, confirm=true,
@@ -20,9 +21,7 @@ export function registerTempoUpdateWorklog(server: McpServer, ctx: ToolContext):
     },
     jsonHandler(async (args: z.infer<typeof updateWorklogInputSchema>) => {
       if (!ctx.config.writeEnabled) {
-        throw new Error(
-          'WRITE_DISABLED: write operations are disabled (WORKLOG_WRITE_ENABLED=false). Enable writes and follow the approval workflow.',
-        );
+        throw new WriteDisabledError();
       }
       const outcome = await ctx.worklogService.updateWorklog(args);
       return {

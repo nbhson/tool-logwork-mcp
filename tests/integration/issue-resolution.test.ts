@@ -30,7 +30,12 @@ function makeService(opts?: { jiraRoutes?: Parameters<typeof mockFetch>[0] }) {
       logger: silentLogger,
     }),
     approvals: new ApprovalService(),
-    config: { timezone: 'UTC', writeEnabled: false, approvalTtlMs: 60_000, tempoAccountId: 'test-account-id' },
+    config: {
+      timezone: 'UTC',
+      writeEnabled: false,
+      approvalTtlMs: 60_000,
+      tempoAccountId: 'test-account-id',
+    },
     logger: silentLogger,
   });
   return { service, jiraCalls: jiraMock.calls, tempoCalls: tempoMock.calls };
@@ -134,7 +139,12 @@ describe('WorklogService issue resolution (batch + cache)', () => {
       }),
       jira: null,
       approvals: new ApprovalService(),
-      config: { timezone: 'UTC', writeEnabled: false, approvalTtlMs: 60_000, tempoAccountId: 'test-account-id' },
+      config: {
+        timezone: 'UTC',
+        writeEnabled: false,
+        approvalTtlMs: 60_000,
+        tempoAccountId: 'test-account-id',
+      },
       logger: silentLogger,
     });
     const map = await service.resolveIssueKeys([1, 2, 3]);

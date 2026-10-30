@@ -21,7 +21,8 @@ export function registerTempoGetWorklogs(server: McpServer, ctx: ToolContext): v
       title: 'Get Tempo worklogs',
       description:
         'Retrieve Tempo worklogs recorded within an inclusive date range (YYYY-MM-DD). ' +
-        'Optionally scope to one Jira accountId. Read-only; requires TEMPO_API_TOKEN.',
+        "By default, results are scoped to the caller's own Tempo account; pass authorAccountId " +
+        'to scope to one specific user. Read-only; requires TEMPO_API_TOKEN.',
       inputSchema: getWorklogsInputSchema,
     },
     jsonHandler(async (args: GetWorklogsArgs) => {
@@ -33,9 +34,28 @@ export function registerTempoGetWorklogs(server: McpServer, ctx: ToolContext): v
       const tempo = requireTempoClient(ctx);
       const maxResults = args.maxResults ?? 500;
 
-      const worklogs = args.authorAccountId
+      // Default scope: the caller's own account. Tempo returns every worklog the
+      // token can see, so an unfiltered query would silently mix in other users'
+      // worklogs on tokens with broad visibility.
+      let authorScope: string | null = args.authorAccountId ?? null;
+      const notes: string[] = [];
+      if (authorScope === null) {
+        try {
+          authorScope = await ctx.worklogService.getOwnAccountId();
+          notes.push(
+            "No authorAccountId given; results are scoped to the caller's own Tempo account.",
+          );
+        } catch {
+          notes.push(
+            "Could not determine the caller's own account; results are NOT filtered by author " +
+              "and may include other users' worklogs. Set TEMPO_ACCOUNT_ID to always scope results.",
+          );
+        }
+      }
+
+      const worklogs = authorScope
         ? await tempo.getWorklogsByUser({
-            accountId: args.authorAccountId,
+            accountId: authorScope,
             from: args.startDate,
             to: args.endDate,
             maxResults,
@@ -46,6 +66,7 @@ export function registerTempoGetWorklogs(server: McpServer, ctx: ToolContext): v
 
       return {
         range: { startDate: args.startDate, endDate: args.endDate },
+        authorScope,
         count: worklogs.length,
         truncated: truncationFlag(worklogs.length, maxResults),
         worklogs: worklogs.map((w) => ({
@@ -61,6 +82,7 @@ export function registerTempoGetWorklogs(server: McpServer, ctx: ToolContext): v
           updatedAt: w.updatedAt ?? null,
         })),
         note: truncationNote(worklogs.length, maxResults),
+        notes,
       };
     }),
   );

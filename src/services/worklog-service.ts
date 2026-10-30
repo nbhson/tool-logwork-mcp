@@ -84,7 +84,12 @@ export interface WorklogServiceDeps {
   tempo: TempoClient | null;
   jira: JiraClient | null;
   approvals: ApprovalService;
-  config: { timezone: string; writeEnabled: boolean; approvalTtlMs: number; tempoAccountId?: string | null };
+  config: {
+    timezone: string;
+    writeEnabled: boolean;
+    approvalTtlMs: number;
+    tempoAccountId?: string | null;
+  };
   logger: Pick<Logger, 'info' | 'warn' | 'error'>;
 }
 
@@ -92,7 +97,12 @@ export class WorklogService {
   private readonly tempo: TempoClient | null;
   private readonly jira: JiraClient | null;
   private readonly approvals: ApprovalService;
-  private readonly config: { timezone: string; writeEnabled: boolean; approvalTtlMs: number; tempoAccountId?: string | null };
+  private readonly config: {
+    timezone: string;
+    writeEnabled: boolean;
+    approvalTtlMs: number;
+    tempoAccountId?: string | null;
+  };
   private readonly logger: Pick<Logger, 'info' | 'warn' | 'error'>;
   #authorAccountId: string | null = null;
   /** Short-lived LRU/TTL cache for Jira issue lookups (id/key -> issue). */
@@ -295,10 +305,18 @@ export class WorklogService {
     const targetSeconds = changes.timeSpentSeconds ?? current.timeSpentSeconds;
     const targetDescription = changes.description ?? current.description ?? '';
 
+    // Validate the duration strictly only when it is being changed: an existing
+    // worklog may legitimately have a non-whole-minute duration (e.g. 5370s),
+    // and that must not block unrelated updates such as a description fix.
+    const durationMinutes =
+      changes.timeSpentSeconds !== undefined
+        ? secondsToMinutes(changes.timeSpentSeconds)
+        : Math.round(targetSeconds / 60);
+
     const validation = validateWorklogProposal({
       issueKey: issue?.key ?? `ISSUE-${current.issue.id}`,
       date: targetDate,
-      durationMinutes: secondsToMinutes(targetSeconds),
+      durationMinutes,
       description: targetDescription,
       timezone: this.config.timezone,
       issue: issue ? { summary: issue.summary, status: issue.status } : null,
@@ -331,16 +349,19 @@ export class WorklogService {
   // Write (requires WORKLOG_WRITE_ENABLED=true + valid approval token)
   // ---------------------------------------------------------------------------
 
-  /** Lazy-loads and caches the authenticated user's Tempo account ID. */
-  private async getAuthorAccountId(): Promise<string> {
+  /**
+   * Resolves the authenticated user's Tempo account ID (a Jira accountId).
+   * Uses the explicitly configured TEMPO_ACCOUNT_ID when present, otherwise
+   * auto-detects it once via the Tempo client and caches the result.
+   */
+  async getOwnAccountId(): Promise<string> {
     // Use explicitly configured account ID if available
     if (this.config.tempoAccountId) return this.config.tempoAccountId;
     if (this.#authorAccountId !== null) return this.#authorAccountId;
     try {
       const me = await this.tempo!.getMe();
-      const accountId = (me as Record<string, unknown>)?.accountId ?? (me as Record<string, unknown>)?.id;
-      if (accountId) {
-        this.#authorAccountId = String(accountId);
+      if (me.accountId) {
+        this.#authorAccountId = me.accountId;
         return this.#authorAccountId;
       }
     } catch (error) {
@@ -349,7 +370,8 @@ export class WorklogService {
       });
     }
     throw new ConfigError(
-      'TEMPO_ACCOUNT_ID is required for write operations. Set it in your environment (find your accountId from existing worklogs or Tempo Settings → API Integration).',
+      'TEMPO_ACCOUNT_ID could not be auto-detected. Set it in your environment ' +
+        '(find your accountId from an existing worklog or Tempo Settings → API Integration).',
     );
   }
 
@@ -386,7 +408,7 @@ export class WorklogService {
       input.description,
     );
 
-    const authorAccountId = await this.getAuthorAccountId();
+    const authorAccountId = await this.getOwnAccountId();
     let created: TempoWorklog;
     try {
       created = await tempo.createWorklog(createCreatePayload(resolved, proposal, authorAccountId));
@@ -394,6 +416,8 @@ export class WorklogService {
       throw uncertainIfTransient(error, 'create');
     }
     this.logger.info('Worklog created', { tempoWorklogId: created.tempoWorklogId });
+    // Single-use: consume the token so the same approval cannot create a duplicate.
+    this.approvals.consume(input.approvalToken);
     const verification = await this.verify(created.tempoWorklogId);
     return { worklog: created, verification, duplicates };
   }
@@ -420,6 +444,7 @@ export class WorklogService {
       throw uncertainIfTransient(error, 'update');
     }
     this.logger.info('Worklog updated', { tempoWorklogId: input.worklogId });
+    this.approvals.consume(input.approvalToken);
     const verification = await this.verify(input.worklogId);
     return { worklog: updated, verification, before };
   }
@@ -490,9 +515,11 @@ function createApprovalPayload(
   resolved: ResolvedIssue,
   proposal: WorklogProposal,
 ): Record<string, unknown> {
+  // The approval is bound by numeric issueId, NOT issueKey: if Jira becomes
+  // unavailable between preview and write, the fallback resolution
+  // (`issue-<id>`) must not invalidate a valid approval.
   return {
     kind: 'create',
-    issueKey: resolved.issueKey,
     issueId: resolved.issueId,
     date: proposal.date,
     durationMinutes: proposal.durationMinutes,

@@ -1,4 +1,5 @@
 import { BaseClient, PaginatedResponse, type FetchLike, type RetryLogger } from './base-client.js';
+import { ApiError } from '../utils/errors.js';
 import { DEFAULTS } from '../config/constants.js';
 import { tempoWorklogPageSchema, tempoWorklogSchema } from '../schemas/api-response.schema.js';
 
@@ -108,6 +109,24 @@ export class TempoClient extends BaseClient {
   }
 
   /**
+   * Identifies the authenticated user. Tempo v4 has no `/me` endpoint, and
+   * `/accounts` returns Tempo accounts (teams/cost centers), not users — so the
+   * only reliable way to detect the caller is to read the author of one
+   * existing worklog. Returns an empty object when the account has no worklogs.
+   */
+  async getMe(): Promise<{ accountId?: string }> {
+    const page = await this.request<PaginatedResponse<TempoWorklog>>(
+      '/worklogs',
+      {
+        headers: this.authHeaders(),
+        query: { limit: 1 },
+      },
+      tempoWorklogPageSchema,
+    );
+    return { accountId: page.results[0]?.author?.accountId ?? undefined };
+  }
+
+  /**
    * Retrieves worklogs for one user (Jira accountId) within a date range.
    */
   async getWorklogsByUser(params: {
@@ -149,21 +168,6 @@ export class TempoClient extends BaseClient {
     );
   }
 
-  /**
-   * Returns the authenticated user's Tempo account info.
-   * Tries GET /accounts (paginated) to find the calling user.
-   */
-  async getMe(): Promise<Record<string, unknown>> {
-    const accounts = await this.request<PaginatedResponse<{ accountId?: string; id?: string }>>(
-      '/accounts',
-      {
-        headers: this.authHeaders(),
-        query: { limit: 1 },
-      },
-    );
-    return ((accounts.results?.[0] ?? accounts) as unknown) as Record<string, unknown>;
-  }
-
   async updateWorklog(worklogId: number, payload: UpdateWorklogPayload): Promise<TempoWorklog> {
     return this.request<TempoWorklog>(
       `/worklogs/${encodeURIComponent(String(worklogId))}`,
@@ -187,6 +191,7 @@ export class TempoClient extends BaseClient {
   ): Promise<TempoWorklog[]> {
     const collected: TempoWorklog[] = [];
     let offset = 0;
+    let lastResponse: PaginatedResponse<TempoWorklog> | null = null;
 
     for (let page = 0; page < DEFAULTS.tempoMaxPages; page++) {
       const response = await this.request<PaginatedResponse<TempoWorklog>>(
@@ -201,6 +206,7 @@ export class TempoClient extends BaseClient {
         },
         tempoWorklogPageSchema,
       );
+      lastResponse = response;
       collected.push(...response.results);
 
       const hasMore = this.pageHasMore(response, offset);
@@ -208,7 +214,20 @@ export class TempoClient extends BaseClient {
       offset += response.results.length;
     }
 
-    return collected;
+    // Never return more than the caller asked for, even when the final page is larger.
+    if (collected.length > maxResults) return collected.slice(0, maxResults);
+
+    // Page guard: if the loop budget ran out but the API still has more pages,
+    // fail loudly instead of silently truncating (documented in docs/api-contract.md).
+    if (lastResponse && collected.length < maxResults && this.pageHasMore(lastResponse, offset)) {
+      throw new ApiError(
+        `Result set exceeded the ${DEFAULTS.tempoMaxPages}-page pagination guard for ${this.baseUrl}${path}; ` +
+          'narrow the date range or raise maxResults instead of silently truncating results.',
+        502,
+      );
+    }
+
+    return collected.slice(0, maxResults);
   }
 
   private pageHasMore(response: PaginatedResponse<TempoWorklog>, offset: number): boolean {

@@ -14,6 +14,7 @@ export function registerTempoGetWeekSummary(server: McpServer, ctx: ToolContext)
       description:
         'Aggregate RECORDED Tempo worklogs for one week (Monday..Sunday) by day and by issue. ' +
         'The week is resolved from `date` or `weekStartDate`; defaults to the current week in the configured timezone. ' +
+        "By default only the caller's own worklogs are counted (pass authorAccountId to inspect another user). " +
         'Only actually recorded worklogs are counted — missing days are listed as "no recorded worklogs", never as missing work. ' +
         'Read-only; requires TEMPO_API_TOKEN.',
       inputSchema: getWeekSummaryInputSchema,
@@ -22,10 +23,25 @@ export function registerTempoGetWeekSummary(server: McpServer, ctx: ToolContext)
       const anchor = args.weekStartDate ?? args.date ?? todayInTz(ctx.config.timezone);
       const range = weekRangeIso(args.weekStartDate ?? anchor);
 
+      // Default scope: the caller's own account, so totals never silently mix
+      // in other users' worklogs on tokens with broad visibility.
+      let authorScope: string | null = args.authorAccountId ?? null;
+      const scopeNotes: string[] = [];
+      if (authorScope === null) {
+        try {
+          authorScope = await ctx.worklogService.getOwnAccountId();
+        } catch {
+          scopeNotes.push(
+            "Could not determine the caller's own account; the summary is NOT filtered by author " +
+              "and may include other users' worklogs. Set TEMPO_ACCOUNT_ID to always scope results.",
+          );
+        }
+      }
+
       const tempo = requireTempoClient(ctx);
-      const worklogs = args.authorAccountId
+      const worklogs = authorScope
         ? await tempo.getWorklogsByUser({
-            accountId: args.authorAccountId,
+            accountId: authorScope,
             from: range.start,
             to: range.end,
           })
@@ -44,6 +60,7 @@ export function registerTempoGetWeekSummary(server: McpServer, ctx: ToolContext)
 
       return {
         range: summary.range,
+        authorScope,
         totalSeconds: summary.totalSeconds,
         totalFormatted: formatDuration(Math.round(summary.totalSeconds / 60)),
         days: summary.days.map((d) => ({
@@ -65,6 +82,7 @@ export function registerTempoGetWeekSummary(server: McpServer, ctx: ToolContext)
         })),
         daysWithoutRecordedWorklogs: daysWithoutWorklogs,
         notes: [
+          ...scopeNotes,
           'All figures are RECORDED worklogs only. Days without records may be days off, holidays, or unlogged work — the server cannot tell; ask the user.',
           ...(summary.totalSeconds === 0
             ? ['No worklogs were found for this week within the queried scope.']

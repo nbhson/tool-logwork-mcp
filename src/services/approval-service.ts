@@ -54,8 +54,9 @@ export class ApprovalService {
 
   /**
    * Validates that the token exists, matches kind and EXACT payload, and has not expired.
-   * The token is NOT consumed: a verification failure after a successful write
-   * must not force the user to re-approve.
+   * The token is single-use: it is consumed after a successful write (see
+   * `consume`) so the same approval can never create a duplicate. A failed
+   * write keeps the token valid — the user must not need to re-approve in that case.
    */
   validateApproval(token: string, kind: ApprovalKind, payload: unknown): ApprovalCheckResult {
     const record = this.approvals.get(token);
@@ -84,6 +85,11 @@ export class ApprovalService {
       };
     }
     return { ok: true };
+  }
+
+  /** Removes a token after it has been used for a successful write (single-use approval). */
+  consume(token: string): void {
+    this.approvals.delete(token);
   }
 
   /** Removes expired tokens. */

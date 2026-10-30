@@ -146,4 +146,68 @@ describe('TempoClient (mocked HTTP)', () => {
     const body = JSON.parse(calls[0]?.body ?? '{}') as { issueId: number };
     expect(body.issueId).toBe(100);
   });
+
+  it('getMe reads the caller identity from the author of one worklog', async () => {
+    const { fetchFn, calls } = mockFetch([
+      {
+        urlIncludes: '/4/worklogs',
+        respond: () => ({
+          status: 200,
+          json: { metadata: { count: 1 }, results: [worklog(1, '2026-10-26', 3600, 100)] },
+        }),
+      },
+    ]);
+    const c = client(fetchFn);
+    const me = await c.getMe();
+    expect(me.accountId).toBe('acc-1');
+    expect(calls[0]?.url).toContain('limit=1');
+  });
+
+  it('getMe returns no accountId when the account has no worklogs', async () => {
+    const { fetchFn } = mockFetch([
+      {
+        urlIncludes: '/worklogs',
+        respond: () => ({ status: 200, json: { metadata: { count: 0 }, results: [] } }),
+      },
+    ]);
+    const c = client(fetchFn);
+    expect((await c.getMe()).accountId).toBeUndefined();
+  });
+
+  it('never returns more results than maxResults, even when a page is larger', async () => {
+    const { fetchFn } = mockFetch([
+      {
+        urlIncludes: '/worklogs',
+        respond: () => ({
+          status: 200,
+          json: {
+            metadata: { count: 1000, limit: 1000, offset: 0, next: null },
+            results: Array.from({ length: 1000 }, (_, i) => worklog(i + 1)),
+          },
+        }),
+      },
+    ]);
+    const c = client(fetchFn);
+    const result = await c.getWorklogs({ from: '2026-10-26', to: '2026-10-26', maxResults: 200 });
+    expect(result).toHaveLength(200);
+  });
+
+  it('throws instead of silently truncating when the page guard is exhausted', async () => {
+    const { fetchFn } = mockFetch([
+      {
+        urlIncludes: '/worklogs',
+        respond: () => ({
+          status: 200,
+          json: {
+            metadata: { count: 5000 },
+            results: [worklog(Math.random())],
+          },
+        }),
+      },
+    ]);
+    const c = client(fetchFn);
+    await expect(
+      c.getWorklogs({ from: '2026-10-01', to: '2026-10-31', maxResults: 5000 }),
+    ).rejects.toThrow(/pagination guard/);
+  });
 });

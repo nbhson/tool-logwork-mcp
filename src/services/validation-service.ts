@@ -51,8 +51,9 @@ export function validateWorklogProposal(input: ValidationInput): ValidationResul
     errors.push('durationMinutes must be a positive integer.');
   }
 
-  // Description.
-  if (input.description.trim().length === 0) {
+  // Description (may be absent on malformed input; report a validation error,
+  // never crash on `.trim()` of undefined).
+  if (!input.description || input.description.trim().length === 0) {
     errors.push('Description must not be empty.');
   }
 

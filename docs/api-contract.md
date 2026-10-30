@@ -28,6 +28,17 @@ pages per request to guard against loops.
 
 Returns a single worklog object (404 → `NOT_FOUND`).
 
+### GET /worklogs/user/{accountId}
+
+Returns worklogs for one user (Jira accountId path parameter) within a date
+range — the dedicated user-scoping endpoint. The server uses this (path
+parameter, no ambiguity) for all per-user filtering, including the default
+self-scoping of the read tools.
+
+The caller's own account id is auto-detected by reading the `author.accountId`
+of one existing worklog (`GET /worklogs?limit=1`); Tempo v4 has no `/me`
+endpoint and `GET /accounts` returns Tempo accounts (teams), not users.
+
 ### POST /worklogs
 
 Verified request body:
@@ -81,9 +92,11 @@ never the key, so display keys require Jira).
    first thing to flip.
 2. **Tempo page size ceiling** — docs conflict between 1000 and 5000 for
    `limit`. The client uses `limit=1000`, which is safe under both.
-3. **Tempo `GET /worklogs` user filter parameter name** (`accountId` vs
-   `authorId`) — the client uses the parameter documented for v4; if filtering
-   by user returns unfiltered results, check this parameter first.
+
+Formerly listed here: the `GET /worklogs` user-filter query-parameter name
+(`accountId` vs `authorId`). This is no longer an active risk: the server
+scopes all user filtering through the dedicated `GET /worklogs/user/{accountId}`
+path endpoint instead of a query parameter (see above).
 
 These do not affect read paths used by the summary tools in the default
 configuration, but are worth re-verifying against the live API during rollout.
