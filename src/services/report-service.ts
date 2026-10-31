@@ -34,7 +34,7 @@ export function aggregateWorklogs(
   const issueKeyById = opts.issueKeyById;
 
   const dayBuckets = new Map<string, DayBucket>();
-  const issueBuckets = new Map<number, { bucket: IssueBucket; totalSeconds: number }>();
+  const issueBuckets = new Map<number, IssueBucket>();
 
   for (const date of eachDayIso(from, to)) {
     dayBuckets.set(date, { date, totalSeconds: 0, issues: [] });
@@ -61,21 +61,17 @@ export function aggregateWorklogs(
     }
     dayIssue.totalSeconds += worklog.timeSpentSeconds;
 
-    const existing = issueBuckets.get(issueId);
-    if (existing) {
-      existing.totalSeconds += worklog.timeSpentSeconds;
-    } else {
-      const bucket: IssueBucket = { issueId, totalSeconds: worklog.timeSpentSeconds };
+    let issueBucket = issueBuckets.get(issueId);
+    if (!issueBucket) {
+      issueBucket = { issueId, totalSeconds: 0 };
       const resolvedKey = issueKeyById?.get(issueId);
-      if (resolvedKey !== undefined) bucket.issueKey = resolvedKey;
-      issueBuckets.set(issueId, { bucket, totalSeconds: bucket.totalSeconds });
+      if (resolvedKey !== undefined) issueBucket.issueKey = resolvedKey;
+      issueBuckets.set(issueId, issueBucket);
     }
+    issueBucket.totalSeconds += worklog.timeSpentSeconds;
   }
 
-  const issues = [...issueBuckets.values()].map((entry) => {
-    entry.bucket.totalSeconds = entry.totalSeconds;
-    return entry.bucket;
-  });
+  const issues = [...issueBuckets.values()];
 
   issues.sort((a, b) => b.totalSeconds - a.totalSeconds);
   for (const day of dayBuckets.values()) {

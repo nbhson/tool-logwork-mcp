@@ -16,10 +16,10 @@ import {
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+export type HttpMethod = 'GET' | 'POST' | 'PUT';
 
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT';
+  method?: HttpMethod;
   query?: Record<string, string | number | readonly string[] | undefined>;
   body?: unknown;
   headers?: Record<string, string>;

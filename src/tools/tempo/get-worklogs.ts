@@ -9,6 +9,7 @@ import {
 } from '../context.js';
 import type { z } from 'zod';
 import { getWorklogsInputSchema } from '../../schemas/worklog.schema.js';
+import { DEFAULTS } from '../../config/constants.js';
 import { compareIsoDates } from '../../utils/date.js';
 import { ValidationError } from '../../utils/errors.js';
 
@@ -32,7 +33,7 @@ export function registerTempoGetWorklogs(server: McpServer, ctx: ToolContext): v
         );
       }
       const tempo = requireTempoClient(ctx);
-      const maxResults = args.maxResults ?? 500;
+      const maxResults = args.maxResults ?? DEFAULTS.defaultMaxResults;
 
       // Default scope: the caller's own account. Tempo returns every worklog the
       // token can see, so an unfiltered query would silently mix in other users'

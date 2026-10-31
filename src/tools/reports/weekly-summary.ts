@@ -21,7 +21,7 @@ export function registerTempoGetWeekSummary(server: McpServer, ctx: ToolContext)
     },
     jsonHandler(async (args: z.infer<typeof getWeekSummaryInputSchema>) => {
       const anchor = args.weekStartDate ?? args.date ?? todayInTz(ctx.config.timezone);
-      const range = weekRangeIso(args.weekStartDate ?? anchor);
+      const range = weekRangeIso(anchor);
 
       // Default scope: the caller's own account, so totals never silently mix
       // in other users' worklogs on tokens with broad visibility.

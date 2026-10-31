@@ -359,7 +359,7 @@ export class WorklogService {
     if (this.config.tempoAccountId) return this.config.tempoAccountId;
     if (this.#authorAccountId !== null) return this.#authorAccountId;
     try {
-      const me = await this.tempo!.getMe();
+      const me = await this.requireTempo().getMe();
       if (me.accountId) {
         this.#authorAccountId = me.accountId;
         return this.#authorAccountId;
