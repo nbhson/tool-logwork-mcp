@@ -210,10 +210,13 @@ npm run build            # tsc -> dist/
 npm start                # run the stdio server
 ```
 
-Test suite: **77 tests, all passing** (unit: config, date, duration, approval,
-report, duplicate; integration: Tempo client, Jira client, worklog service —
-HTTP fully mocked, no credentials or network needed). `npm publish` runs the
-full gate automatically via `prepublishOnly`.
+Test suite: **116 tests, all passing** (unit: config, context helpers, date,
+duration, logger/error mapping, approval, report, duplicate, TTL cache;
+integration: Tempo client, Jira client, worklog service, and the full MCP tool
+handler surface — registration, read tools, preview → approval → write
+pipeline, single-use token replay rejection — HTTP fully mocked, no
+credentials or network needed). `npm publish` runs the full gate
+automatically via `prepublishOnly`.
 
 ## Documentation
 
