@@ -76,8 +76,13 @@ This repository ships:
 
 - `.opencode/skills/tempo-timesheet/SKILL.md` — picked up automatically when
   OpenCode runs in this project (or copy the folder into the target project).
-- `.opencode/commands/tempo-today.md`, `tempo-week.md`, `tempo-log.md` —
-  slash commands (`/tempo-today`, `/tempo-week`, `/tempo-log ABC-123 ...`).
+- `.opencode/commands/tempo-today.md`, `tempo-week.md`, `tempo-log.md`,
+  `tempo-log-rewrite.md` — slash commands (`/tempo-today`, `/tempo-week`,
+  `/tempo-log ABC-123 ...`, `/tempo-log-rewrite ...`). The log commands
+  accept a single entry or a batch of entries, inline or pasted from
+  txt/md/csv/freeform text; `/tempo-log-rewrite` additionally rewrites each
+  description into a professional work-log entry while preserving its
+  meaning (original and rewritten are both shown in the preview).
 
 To use them in another project, copy the `.opencode` folder there and point
 the MCP config at this server.

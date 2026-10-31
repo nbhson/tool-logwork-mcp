@@ -51,7 +51,15 @@ Ví dụ:
 /tempo-today
 /tempo-week
 /tempo-log SP0168-3839 1h30m
+/tempo-log-rewrite SP0168-3839 1h30m fixed bug nay, da them test
 ```
+
+`/tempo-log` và `/tempo-log-rewrite` đều chấp nhận một entry hoặc nhiều entry
+trong cùng một lần gọi (inline, hoặc nội dung dán từ txt/md/csv/prompt thuần);
+mỗi entry đi qua preview riêng và có `approvalToken` riêng.
+`/tempo-log-rewrite` khác `/tempo-log` ở một điểm: AI viết lại mô tả thành
+văn phong worklog chuyên nghiệp, ngắn gọn, nhưng giữ nguyên ý nghĩa (hiển thị
+cả bản gốc lẫn bản viết lại trong preview để người dùng đối chiếu).
 
 Commands là lớp tiện ích, không phải nơi chứa logic nghiệp vụ. Mỗi command nên yêu cầu agent sử dụng Skill phù hợp và gọi MCP tools theo đúng quy trình.
 

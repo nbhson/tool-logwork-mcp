@@ -151,7 +151,7 @@ claude mcp add tempo-worklog \
 
 ## OpenCode skill & slash commands
 
-This repository ships an agent skill and three slash commands (`.opencode/`).
+This repository ships an agent skill and four slash commands (`.opencode/`).
 After installing from npm, copy them into your project:
 
 ```bash
@@ -171,7 +171,13 @@ This gives you:
 - `.opencode/commands/tempo-week.md` — `/tempo-week` weekly timesheet with
   per-day and per-issue breakdowns.
 - `.opencode/commands/tempo-log.md` — `/tempo-log ABC-123 2h30m ...` with the
-  preview card and approval ritual baked in.
+  preview card and approval ritual baked in. Accepts a single entry or a
+  batch of entries, inline or pasted from txt/md/csv/freeform text.
+- `.opencode/commands/tempo-log-rewrite.md` — `/tempo-log-rewrite` works like
+  `/tempo-log` but first rewrites each description into a professional,
+  concise work-log entry while strictly preserving its meaning. Both the
+  original and the rewritten description are shown in the preview for
+  verification; approval and the write pipeline are unchanged.
 
 Details: [docs/setup-opencode.md](docs/setup-opencode.md).
 
