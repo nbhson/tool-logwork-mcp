@@ -2,10 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { Logger, toErrorPayload } from '../../src/utils/logger.js';
 import {
   AppError,
+  ApprovalRequiredError,
+  AuthError,
+  ConfigError,
+  NetworkError,
   NotFoundError,
+  PermissionError,
   RateLimitError,
   TimeoutError,
+  UncertainOutcomeError,
   ValidationError,
+  WriteDisabledError,
 } from '../../src/utils/errors.js';
 
 function captureStderr(): { lines: () => string[]; restore: () => void } {
@@ -109,5 +116,32 @@ describe('toErrorPayload', () => {
   it('preserves custom details on a bare AppError', () => {
     const error = new AppError('API_ERROR', 'api broke', 502, { bodySnippet: 'x' });
     expect(toErrorPayload(error).details).toEqual({ bodySnippet: 'x' });
+  });
+
+  it('includes an actionable hint for common operational errors', () => {
+    const cases: Array<[AppError, RegExp]> = [
+      [new AuthError('Authentication failed.'), /generate a fresh token/i],
+      [new PermissionError('denied'), /scopes/i],
+      [new WriteDisabledError(), /WORKLOG_WRITE_ENABLED=true/i],
+      [new ApprovalRequiredError('no token'), /tempo_preview_worklog/i],
+      [new NetworkError('unreachable'), /network|proxy/i],
+      [new TimeoutError('too slow'), /verify/i],
+      [new ConfigError('missing config'), /.env.example/i],
+      [new UncertainOutcomeError('maybe applied'), /verify/i],
+    ];
+    for (const [error, pattern] of cases) {
+      const payload = toErrorPayload(error);
+      expect(payload.hint, error.code).toBeDefined();
+      expect(payload.hint!, error.code).toMatch(pattern);
+    }
+  });
+
+  it('omits the hint field for codes without a hint (e.g. INTERNAL_ERROR)', () => {
+    expect(toErrorPayload(new Error('plain'))).toEqual({
+      isError: true,
+      code: 'INTERNAL_ERROR',
+      message: 'plain',
+    });
+    expect(toErrorPayload(new AppError('INTERNAL_ERROR', 'bug'))).not.toHaveProperty('hint');
   });
 });

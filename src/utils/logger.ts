@@ -1,4 +1,4 @@
-import { AppError, ErrorCode } from './errors.js';
+import { AppError, ErrorCode, errorHint } from './errors.js';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -49,14 +49,17 @@ export function toErrorPayload(error: unknown): {
   code: ErrorCode;
   status?: number;
   message: string;
+  hint?: string;
   details?: unknown;
 } {
   if (error instanceof AppError) {
+    const hint = errorHint(error.code);
     return {
       isError: true,
       code: error.code,
       ...(error.status !== undefined ? { status: error.status } : {}),
       message: error.message,
+      ...(hint !== undefined ? { hint } : {}),
       ...(error.details !== undefined ? { details: error.details } : {}),
     };
   }
