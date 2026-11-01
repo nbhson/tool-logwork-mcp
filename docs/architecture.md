@@ -111,6 +111,13 @@ Safety invariants implemented in `WorklogService`:
 | `APPROVAL_REQUIRED`         | Missing/expired/mismatched approval token | Re-preview               |
 | `CONFIG_ERROR`              | Missing configuration                     | N/A                      |
 
+Tool error envelopes carry `code`, `message`, optionally `status` and
+`details`, and — for the common operational codes — an actionable `hint`
+field telling the model/user the concrete next step (regenerate the token,
+enable `WORKLOG_WRITE_ENABLED` and re-preview, verify before retrying a
+timed-out write, …). See `ERROR_HINTS` in `src/utils/errors.ts` and the
+troubleshooting table in the README.
+
 ## Module map
 
 ```

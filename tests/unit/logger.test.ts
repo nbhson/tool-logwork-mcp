@@ -18,12 +18,10 @@ import {
 function captureStderr(): { lines: () => string[]; restore: () => void } {
   const writes: string[] = [];
   const original = process.stderr.write.bind(process.stderr);
-  const spy = vi
-    .spyOn(process.stderr, 'write')
-    .mockImplementation(((chunk: unknown) => {
-      writes.push(String(chunk));
-      return true;
-    }) as typeof process.stderr.write);
+  const spy = vi.spyOn(process.stderr, 'write').mockImplementation(((chunk: unknown) => {
+    writes.push(String(chunk));
+    return true;
+  }) as typeof process.stderr.write);
   return {
     lines: () => writes,
     restore: () => {

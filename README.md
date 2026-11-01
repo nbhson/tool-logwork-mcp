@@ -198,6 +198,25 @@ Details: [docs/setup-opencode.md](docs/setup-opencode.md).
 - **Recorded data only.** Summaries count recorded worklogs only — no invented
   hours, no assumed work.
 
+## Troubleshooting
+
+Every tool error envelope carries a stable machine-readable `code` and, for
+common operational failures, an actionable `hint` field. The most common ones:
+
+| Error code                  | Meaning & what to do                                                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTH_ERROR` (401)          | Token missing/expired/revoked. Generate a fresh token (Tempo: Settings → API Integration; Jira: id.atlassian.com → Security → API tokens), update the env var, restart the server. |
+| `PERMISSION_ERROR` (403)    | Token valid but lacks scope/visibility (Tempo needs the Worklogs scope; check Jira project access).                                                                                |
+| `WRITE_DISABLED`            | Writes are off by default. Set `WORKLOG_WRITE_ENABLED=true` and restart, then **re-run the preview** for a fresh token.                                                            |
+| `APPROVAL_REQUIRED`         | Token expired (>15 min), consumed, or the payload changed. Call `tempo_preview_worklog` again.                                                                                     |
+| `UNCERTAIN_OUTCOME`         | The write MAY have landed. Verify with `tempo_get_worklog(s)` before any retry — never blind-retry.                                                                                |
+| `NETWORK_ERROR` / `TIMEOUT` | Check connectivity/VPN/proxy (`HTTPS_PROXY`). For a timed-out write, verify before retrying.                                                                                       |
+| `CONFIG_ERROR`              | Configuration incomplete — compare with `.env.example` and restart.                                                                                                                |
+| `RATE_LIMIT` (429)          | Wait for the suggested interval, then retry; narrow the date range or lower `maxResults`.                                                                                          |
+
+More environment-specific symptoms (Jira partial config, auto-detection on a
+fresh account, timezone off-by-one): [docs/setup-opencode.md](docs/setup-opencode.md).
+
 ## Development
 
 ```bash
@@ -210,13 +229,17 @@ npm run build            # tsc -> dist/
 npm start                # run the stdio server
 ```
 
-Test suite: **116 tests, all passing** (unit: config, context helpers, date,
-duration, logger/error mapping, approval, report, duplicate, TTL cache;
-integration: Tempo client, Jira client, worklog service, and the full MCP tool
-handler surface — registration, read tools, preview → approval → write
-pipeline, single-use token replay rejection — HTTP fully mocked, no
-credentials or network needed). `npm publish` runs the full gate
-automatically via `prepublishOnly`.
+Test suite: **143 tests, all passing** (unit: config, context helpers, date —
+including timezone/week-boundary cases, duration, logger/error hints, approval,
+report, duplicate, TTL cache; integration: Tempo client, Jira client, worklog
+service, weekly-summary timezone regression (UTC/+7/+9/+10/−10, Sunday vs
+Monday week anchoring, mocked clock), and the full MCP tool handler surface;
+protocol-level: a real MCP `Client` over an `InMemoryTransport` pair exercises
+initialize, `tools/list` (all 9 tools + JSON Schemas), and tool-call envelopes
+end-to-end). HTTP is fully mocked — no credentials or network needed.
+Coverage (v8): ~89% statements, ~78% branches, ~92% lines
+(`npm run test:coverage`). `npm publish` runs the full gate automatically via
+`prepublishOnly`.
 
 ## Documentation
 
@@ -225,6 +248,7 @@ automatically via `prepublishOnly`.
 - [docs/security.md](docs/security.md) — credential handling, write-safety model
 - [docs/workflows.md](docs/workflows.md) — agent workflows (daily/weekly/logging/update)
 - [docs/setup-opencode.md](docs/setup-opencode.md) — OpenCode registration + troubleshooting
+- [docs/backlog.md](docs/backlog.md) — evaluated-but-deferred features (bulk edit, weekly template)
 
 The Vietnamese design documents in
 [docs/design/](docs/design/) (`architecture.md`, `security.md`, `skills.md`,
