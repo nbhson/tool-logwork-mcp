@@ -1,13 +1,16 @@
 import {
   isIsoDateString,
   isValidCalendarDate,
+  formatIsoDateInTz,
+  todayInTz,
+  assertValidTimezone,
   weekStartIso,
   weekRangeIso,
   daysBetween,
   eachDayIso,
   addDaysIso,
 } from '../../src/utils/date.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 describe('isIsoDateString / isValidCalendarDate', () => {
   it('accepts valid dates', () => {
@@ -46,6 +49,55 @@ describe('weekStartIso / weekRangeIso', () => {
     expect(start).toBe('2026-10-26');
     expect(end).toBe('2026-11-01');
     expect(daysBetween(start, end)).toBe(6);
+  });
+
+  it('a SUNDAY belongs to the previous Monday-started week', () => {
+    // 2026-11-01 is a Sunday: it closes the week that started Mon 2026-10-26.
+    expect(weekStartIso('2026-11-01')).toBe('2026-10-26');
+    expect(weekRangeIso('2026-11-01')).toEqual({ start: '2026-10-26', end: '2026-11-01' });
+  });
+
+  it('a SATURDAY stays inside its own week', () => {
+    // 2026-10-31 is a Saturday.
+    expect(weekStartIso('2026-10-31')).toBe('2026-10-26');
+  });
+
+  it('spans the year boundary (2027-01-01 is a Friday)', () => {
+    expect(weekRangeIso('2027-01-01')).toEqual({ start: '2026-12-28', end: '2027-01-03' });
+  });
+});
+
+describe('formatIsoDateInTz / todayInTz', () => {
+  // 23:30 UTC on Sunday 2026-11-01 is already Monday 2026-11-02 in UTC+7..+11,
+  // and still Sunday in UTC and UTC-10.
+  const sundayNightUtc = new Date('2026-11-01T23:30:00Z');
+
+  it('formats the same instant differently per timezone', () => {
+    expect(formatIsoDateInTz(sundayNightUtc, 'UTC')).toBe('2026-11-01');
+    expect(formatIsoDateInTz(sundayNightUtc, 'Asia/Ho_Chi_Minh')).toBe('2026-11-02'); // +7
+    expect(formatIsoDateInTz(sundayNightUtc, 'Asia/Tokyo')).toBe('2026-11-02'); // +9
+    expect(formatIsoDateInTz(sundayNightUtc, 'Australia/Sydney')).toBe('2026-11-02'); // +11 (AEDT)
+    expect(formatIsoDateInTz(sundayNightUtc, 'Pacific/Honolulu')).toBe('2026-11-01'); // -10
+    expect(formatIsoDateInTz(sundayNightUtc, 'America/Los_Angeles')).toBe('2026-11-01'); // -8 (PDT)
+  });
+
+  it('todayInTz resolves the current date in the configured timezone', () => {
+    vi.useFakeTimers({ now: sundayNightUtc });
+    try {
+      expect(todayInTz('UTC')).toBe('2026-11-01');
+      expect(todayInTz('Asia/Ho_Chi_Minh')).toBe('2026-11-02');
+      expect(todayInTz('Asia/Tokyo')).toBe('2026-11-02');
+      expect(todayInTz('Australia/Sydney')).toBe('2026-11-02');
+      expect(todayInTz('Pacific/Honolulu')).toBe('2026-11-01');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('assertValidTimezone accepts IANA names and rejects unknown ones', () => {
+    expect(() => assertValidTimezone('Asia/Ho_Chi_Minh')).not.toThrow();
+    expect(() => assertValidTimezone('UTC')).not.toThrow();
+    expect(() => assertValidTimezone('Not/AZone')).toThrow(/Unknown timezone/);
   });
 });
 
