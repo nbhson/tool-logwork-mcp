@@ -22,12 +22,63 @@ export function registerTempoValidateWorklog(server: McpServer, ctx: ToolContext
       inputSchema: validateWorklogInputSchema,
     },
     jsonHandler(async (args: ValidateArgs) => {
-      const resolved = await ctx.worklogService.resolveIssue(args.issueKey);
+      const a = args as Record<string, unknown>;
+      const listAliases = ['proposals', 'entries', 'items', 'worklogs', 'logs', 'batch'];
+      const listKey = listAliases.find((k) => Array.isArray(a[k]) && (a[k] as unknown[]).length > 0);
+      if (listKey) {
+        const list = a[listKey] as Array<Record<string, unknown>>;
+        const results = await Promise.all(
+          list.map(async (raw) => {
+            const p = (raw?.proposal ?? raw) as Record<string, unknown>;
+            const resolved = await ctx.worklogService.resolveIssue(String(p.issueKey));
+            const validation = validateWorklogProposal({
+              issueKey: resolved.issueKey,
+              date: String(p.date),
+              durationMinutes: Number(p.durationMinutes),
+              description: String(p.description),
+              timezone: ctx.config.timezone,
+              issue: { summary: resolved.summary, status: resolved.status },
+            });
+            return {
+              issue: {
+                id: String(resolved.issueId),
+                key: resolved.issueKey,
+                summary: resolved.summary,
+                status: resolved.status,
+              },
+              proposal: {
+                issueKey: resolved.issueKey,
+                date: String(p.date),
+                durationMinutes: Number(p.durationMinutes),
+                timeSpentSeconds: Number(p.durationMinutes) * 60,
+                description: String(p.description),
+              },
+              valid: validation.errors.length === 0,
+              ...validation,
+            };
+          }),
+        );
+        return {
+          count: results.length,
+          valid: results.every((r) => r.valid),
+          results,
+          entries: results,
+          items: results,
+          note: 'A successful validation is NOT an approval. Use tempo_preview_worklog to obtain an approval token before any write.',
+        };
+      }
+
+      // single flattened / proposal
+      const single = (a.proposal ?? a) as Record<string, unknown>;
+      const resolved = await ctx.worklogService.resolveIssue(String(single.issueKey ?? args.issueKey));
+      const date = String(single.date ?? args.date);
+      const durationMinutes = Number(single.durationMinutes ?? args.durationMinutes);
+      const description = String(single.description ?? args.description);
       const validation = validateWorklogProposal({
         issueKey: resolved.issueKey,
-        date: args.date,
-        durationMinutes: args.durationMinutes,
-        description: args.description,
+        date,
+        durationMinutes,
+        description,
         timezone: ctx.config.timezone,
         issue: { summary: resolved.summary, status: resolved.status },
       });
@@ -40,10 +91,10 @@ export function registerTempoValidateWorklog(server: McpServer, ctx: ToolContext
         },
         proposal: {
           issueKey: resolved.issueKey,
-          date: args.date,
-          durationMinutes: args.durationMinutes,
-          timeSpentSeconds: args.durationMinutes * 60,
-          description: args.description,
+          date,
+          durationMinutes,
+          timeSpentSeconds: durationMinutes * 60,
+          description,
         },
         valid: validation.errors.length === 0,
         ...validation,

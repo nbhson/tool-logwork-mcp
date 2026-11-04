@@ -289,3 +289,12 @@ as built.
 - Cleaner validation errors for malformed create previews (no crash on
   missing description); `tempo_update_worklog` now returns the structured
   `WRITE_DISABLED` error code like `tempo_create_worklog`.
+
+## What's new in 0.6.0
+
+- **Multi-log support.** `tempo_preview_worklog`, `tempo_create_worklog`, and
+  `tempo_validate_worklog` now accept either a single entry (as before) or a
+  batch of entries via `proposals` / `entries` / `items` / `worklogs` / `logs` /
+  `batch`. A batch preview issues a single approval token bound to the whole
+  batch; the write runs entries sequentially and reports per-entry results
+  (created / failed / uncertain) without blind-retrying uncertain writes.

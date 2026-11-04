@@ -33,20 +33,65 @@ export function registerTempoCreateWorklog(server: McpServer, ctx: ToolContext):
         throw new WriteDisabledError();
       }
       const outcome = await ctx.worklogService.createWorklog(args);
+      // Multi-log (batch) result shape.
+      if (outcome && Array.isArray((outcome as unknown as { results?: unknown }).results)) {
+        const bulk = outcome as unknown as {
+          created: boolean;
+          count: number;
+          createdCount: number;
+          results: Array<Record<string, unknown>>;
+        };
+        return {
+          created: bulk.created,
+          count: bulk.count,
+          createdCount: bulk.createdCount,
+          results: bulk.results.map((r) => {
+            const w = r.worklog as
+              | { tempoWorklogId: number; issue: { id: number }; startDate: string; timeSpentSeconds: number; description?: string | null }
+              | undefined;
+            return {
+              index: r.index,
+              created: r.created,
+              uncertain: r.uncertain ?? false,
+              error: r.error ?? null,
+              code: r.code ?? null,
+              verification: r.verification ?? null,
+              worklog: w
+                ? {
+                    tempoWorklogId: w.tempoWorklogId,
+                    issueId: w.issue.id,
+                    startDate: w.startDate,
+                    timeSpentSeconds: w.timeSpentSeconds,
+                    description: w.description ?? null,
+                  }
+                : null,
+              duplicatesAtWriteTime: r.duplicatesAtWriteTime ?? [],
+            };
+          }),
+          notes: [
+            'Worklogs were created because a preview approval token matched this exact batch payload.',
+          ],
+        };
+      }
+      const single = outcome as {
+        worklog: { tempoWorklogId: number; issue: { id: number }; startDate: string; timeSpentSeconds: number; description?: string | null };
+        verification: 'verified' | 'unverified';
+        duplicates: unknown;
+      };
       return {
         created: true,
-        verification: outcome.verification,
+        verification: single.verification,
         worklog: {
-          tempoWorklogId: outcome.worklog.tempoWorklogId,
-          issueId: outcome.worklog.issue.id,
-          startDate: outcome.worklog.startDate,
-          timeSpentSeconds: outcome.worklog.timeSpentSeconds,
-          description: outcome.worklog.description ?? null,
+          tempoWorklogId: single.worklog.tempoWorklogId,
+          issueId: single.worklog.issue.id,
+          startDate: single.worklog.startDate,
+          timeSpentSeconds: single.worklog.timeSpentSeconds,
+          description: single.worklog.description ?? null,
         },
-        duplicatesAtWriteTime: outcome.duplicates,
+        duplicatesAtWriteTime: single.duplicates,
         notes: [
           'The worklog was created because a preview approval token matched this exact payload.',
-          outcome.verification === 'verified'
+          single.verification === 'verified'
             ? 'The result was re-read from the Tempo API and matches.'
             : 'WARNING: the write API call succeeded but post-write verification failed; re-read the worklog before any further action.',
         ],

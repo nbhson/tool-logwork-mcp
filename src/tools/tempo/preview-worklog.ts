@@ -29,7 +29,12 @@ export function registerTempoPreviewWorklog(server: McpServer, ctx: ToolContext)
     },
     jsonHandler(async (args: PreviewArgs) => {
       if (args.operation === 'create') {
-        // Handle OpenCode's flattened schema: proposal fields at top level
+        const a = args as Record<string, unknown>;
+        const listAliases = ['proposals', 'entries', 'items', 'worklogs', 'logs', 'batch'];
+        const listKey = listAliases.find((k) => Array.isArray(a[k]) && (a[k] as unknown[]).length > 0);
+        if (listKey) {
+          return ctx.worklogService.previewCreate(a[listKey] as never);
+        }
         const proposal =
           args.proposal ??
           ({

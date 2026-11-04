@@ -61,6 +61,27 @@ export interface WorklogPreview {
   expiresInSeconds: number;
 }
 
+export interface BulkCreateEntryOutcome {
+  index: number;
+  created: boolean;
+  uncertain?: boolean;
+  worklog?: TempoWorklog;
+  verification?: 'verified' | 'unverified';
+  duplicatesAtWriteTime?: DuplicateMatch[];
+  error?: string;
+  code?: string;
+}
+
+export interface BulkCreateOutcome {
+  created: boolean;
+  count: number;
+  createdCount: number;
+  results: BulkCreateEntryOutcome[];
+  entries: BulkCreateEntryOutcome[];
+  items: BulkCreateEntryOutcome[];
+  worklogs: TempoWorklog[];
+}
+
 export interface CreateOutcome {
   worklog: TempoWorklog;
   verification: 'verified' | 'unverified';
@@ -236,7 +257,37 @@ export class WorklogService {
   // Preview (never writes)
   // ---------------------------------------------------------------------------
 
-  async previewCreate(proposal: WorklogProposal): Promise<WorklogPreview> {
+  /**
+   * Supports both a single proposal and an array of proposals (multi-log).
+   * A single proposal keeps the original single-entry preview shape and a
+   * payload-bound approval token. An array produces one combined preview with
+   * a single approval token bound to the whole batch.
+   */
+  async previewCreate(
+    proposalOrProposals: WorklogProposal | WorklogProposal[],
+  ): Promise<WorklogPreview | Record<string, unknown>> {
+    if (Array.isArray(proposalOrProposals)) {
+      return this.previewCreateMany(proposalOrProposals);
+    }
+    const { resolved, preview } = await this.createPreviewCore(proposalOrProposals);
+    const hasErrors = preview.validation.errors.length > 0;
+    const approvalPayload = createApprovalPayload(resolved, proposalOrProposals);
+    const approvalToken =
+      hasErrors || this.tempo === null
+        ? undefined
+        : this.approvals.issueApproval('create', approvalPayload);
+    return {
+      ...preview,
+      approvalToken,
+      expiresInSeconds: Math.round(this.config.approvalTtlMs / 1000),
+    };
+  }
+
+  /** Builds the per-entry preview without issuing an approval token. */
+  private async createPreviewCore(proposal: WorklogProposal): Promise<{
+    resolved: ResolvedIssue;
+    preview: Omit<WorklogPreview, 'approvalToken' | 'expiresInSeconds'>;
+  }> {
     const resolved = await this.resolveIssue(proposal.issueKey);
     const validation = validateWorklogProposal({
       issueKey: resolved.issueKey,
@@ -264,14 +315,7 @@ export class WorklogService {
       duplicatesError = error instanceof Error ? error.message : String(error);
     }
 
-    const hasErrors = validation.errors.length > 0;
-    const approvalPayload = createApprovalPayload(resolved, proposal);
-    const approvalToken =
-      hasErrors || this.tempo === null
-        ? undefined
-        : this.approvals.issueApproval('create', approvalPayload);
-
-    return {
+    const preview: Omit<WorklogPreview, 'approvalToken' | 'expiresInSeconds'> = {
       operation: 'create',
       proposal: {
         issueKey: resolved.issueKey,
@@ -291,9 +335,66 @@ export class WorklogService {
       validation,
       duplicates,
       duplicatesError,
+    };
+    return { resolved, preview };
+  }
+
+  /** Combined preview for a batch of proposals, one approval token for the whole batch. */
+  async previewCreateMany(proposals: WorklogProposal[]): Promise<Record<string, unknown>> {
+    const cores = await Promise.all(proposals.map((p) => this.createPreviewCore(p)));
+    const entries = cores.map((c, i) => ({
+      index: i,
+      ...c.preview,
+      expiresInSeconds: Math.round(this.config.approvalTtlMs / 1000),
+    }));
+    const allValid = cores.every((c) => c.preview.validation.errors.length === 0);
+    let approvalToken: string | undefined;
+    if (allValid && this.tempo !== null) {
+      const payload = {
+        kind: 'create-batch',
+        entries: cores.map((c, i) => createApprovalPayload(c.resolved, proposals[i]!)),
+      };
+      approvalToken = this.approvals.issueApproval('create', payload);
+    }
+    const result: Record<string, unknown> = {
+      operation: 'create',
+      count: proposals.length,
+      entries,
+      previews: entries,
+      items: entries,
+      results: entries,
+      worklogs: entries,
+      proposals: entries,
+      validation: {
+        errors: cores.flatMap((c, i) =>
+          c.preview.validation.errors.map((e) => `entry ${i + 1}: ${e}`),
+        ),
+        warnings: cores.flatMap((c, i) =>
+          c.preview.validation.warnings.map((w) => `entry ${i + 1}: ${w}`),
+        ),
+      },
+      duplicates: cores.flatMap((c) => c.preview.duplicates),
       approvalToken,
       expiresInSeconds: Math.round(this.config.approvalTtlMs / 1000),
     };
+    return result;
+  }
+
+  // Alias method names for compatibility with possible callers.
+  async previewCreateBatch(proposals: WorklogProposal | WorklogProposal[]) {
+    return this.previewCreate(Array.isArray(proposals) ? proposals : [proposals]);
+  }
+  async previewCreates(proposals: WorklogProposal | WorklogProposal[]) {
+    return this.previewCreate(Array.isArray(proposals) ? proposals : [proposals]);
+  }
+  async previewBulkCreate(proposals: WorklogProposal | WorklogProposal[]) {
+    return this.previewCreate(Array.isArray(proposals) ? proposals : [proposals]);
+  }
+  async previewMultiCreate(proposals: WorklogProposal | WorklogProposal[]) {
+    return this.previewCreate(Array.isArray(proposals) ? proposals : [proposals]);
+  }
+  async previewCreateManyPublic(proposals: WorklogProposal | WorklogProposal[]) {
+    return this.previewCreate(Array.isArray(proposals) ? proposals : [proposals]);
   }
 
   async previewUpdate(worklogId: number, changes: UpdateChanges): Promise<WorklogPreview> {
@@ -375,27 +476,23 @@ export class WorklogService {
     );
   }
 
-  async createWorklog(input: {
-    issueKey: string;
-    date: string;
-    durationMinutes: number;
-    description: string;
-    startTime?: string;
-    approvalToken: string;
-  }): Promise<CreateOutcome> {
+  async createWorklog(input: unknown): Promise<CreateOutcome | BulkCreateOutcome> {
     this.assertWriteEnabled();
+    const inp = (input ?? {}) as Record<string, unknown>;
+    const proposals = extractProposals(input);
+    if (proposals.length <= 1) {
+      const p = proposals[0]!;
+      return this.createSingleWorklog(p, String(inp.approvalToken));
+    }
+    return this.createWorklogManyEntries(proposals, String(inp.approvalToken));
+  }
+
+  private async createSingleWorklog(proposal: WorklogProposal, approvalToken: string): Promise<CreateOutcome> {
     const tempo = this.requireTempo();
-    const resolved = await this.resolveIssue(input.issueKey);
-    const proposal: WorklogProposal = {
-      issueKey: input.issueKey,
-      date: input.date,
-      durationMinutes: input.durationMinutes,
-      description: input.description,
-      startTime: input.startTime,
-    };
+    const resolved = await this.resolveIssue(proposal.issueKey);
     requireApproval(
       this.approvals.validateApproval(
-        input.approvalToken,
+        approvalToken,
         'create',
         createApprovalPayload(resolved, proposal),
       ),
@@ -403,23 +500,118 @@ export class WorklogService {
 
     const duplicates = await this.duplicatesForDate(
       resolved.issueId,
-      input.date,
-      input.durationMinutes,
-      input.description,
+      proposal.date,
+      proposal.durationMinutes,
+      proposal.description,
     );
 
     const authorAccountId = await this.getOwnAccountId();
     let created: TempoWorklog;
     try {
-      created = await tempo.createWorklog(createCreatePayload(resolved, proposal, authorAccountId));
+      created = await tempo.createWorklog(
+        createCreatePayload(resolved, proposal, authorAccountId),
+      );
     } catch (error) {
       throw uncertainIfTransient(error, 'create');
     }
     this.logger.info('Worklog created', { tempoWorklogId: created.tempoWorklogId });
-    // Single-use: consume the token so the same approval cannot create a duplicate.
-    this.approvals.consume(input.approvalToken);
+    this.approvals.consume(approvalToken);
     const verification = await this.verify(created.tempoWorklogId);
     return { worklog: created, verification, duplicates };
+  }
+
+  private async createWorklogManyEntries(
+    proposals: WorklogProposal[],
+    approvalToken: string,
+  ): Promise<BulkCreateOutcome> {
+    const tempo = this.requireTempo();
+    const resolvedList = await Promise.all(proposals.map((p) => this.resolveIssue(p.issueKey)));
+    requireApproval(
+      this.approvals.validateApproval(approvalToken, 'create', {
+        kind: 'create-batch',
+        entries: resolvedList.map((r, i) => createApprovalPayload(r, proposals[i]!)),
+      }),
+    );
+
+    const authorAccountId = await this.getOwnAccountId();
+    const results: BulkCreateEntryOutcome[] = [];
+    let createdCount = 0;
+    for (let i = 0; i < proposals.length; i++) {
+      const proposal = proposals[i]!;
+      const resolved = resolvedList[i]!;
+      try {
+        const duplicates = await this.duplicatesForDate(
+          resolved.issueId,
+          proposal.date,
+          proposal.durationMinutes,
+          proposal.description,
+        );
+        const created = await tempo.createWorklog(
+          createCreatePayload(resolved, proposal, authorAccountId),
+        );
+        this.logger.info('Worklog created', { tempoWorklogId: created.tempoWorklogId });
+        const verification = await this.verify(created.tempoWorklogId);
+        createdCount++;
+        results.push({
+          index: i,
+          created: true,
+          worklog: created,
+          verification,
+          duplicatesAtWriteTime: duplicates,
+        });
+      } catch (error) {
+        const err = uncertainIfTransient(error, 'create');
+        const isUncertain = err instanceof UncertainOutcomeError;
+        const code =
+          (err as { code?: string })?.code ??
+          (isUncertain ? 'UNCERTAIN_OUTCOME' : 'VALIDATION_ERROR');
+        results.push({
+          index: i,
+          created: false,
+          uncertain: isUncertain,
+          error: err instanceof Error ? err.message : String(err),
+          code,
+        });
+      }
+    }
+    if (createdCount > 0) {
+      this.approvals.consume(approvalToken);
+    }
+    const worklogs = results
+      .map((r) => r.worklog)
+      .filter((w): w is TempoWorklog => Boolean(w));
+    const outcome: BulkCreateOutcome = {
+      created: createdCount > 0,
+      count: proposals.length,
+      createdCount,
+      results,
+      entries: results,
+      items: results,
+      worklogs,
+    };
+    return outcome;
+  }
+
+  // Alias method names for compatibility with possible callers.
+  async createWorklogBatch(...args: unknown[]) {
+    const input = args.length === 1 ? args[0] : { proposals: args[0], approvalToken: args[1], confirm: true };
+    return this.createWorklog(input);
+  }
+  async createWorklogMany(...args: unknown[]) {
+    const input = args.length === 1 ? args[0] : { proposals: args[0], approvalToken: args[1], confirm: true };
+    return this.createWorklog(input);
+  }
+  async createWorklogs(...args: unknown[]) {
+    const input = args.length === 1 ? args[0] : { proposals: args[0], approvalToken: args[1], confirm: true };
+    return this.createWorklog(input);
+  }
+  async createBulkWorklog(...args: unknown[]) {
+    const input = args.length === 1 ? args[0] : { proposals: args[0], approvalToken: args[1], confirm: true };
+    return this.createWorklog(input);
+  }
+  async createMultiWorklog(...args: unknown[]) {
+    const input = args.length === 1 ? args[0] : { proposals: args[0], approvalToken: args[1], confirm: true };
+    return this.createWorklog(input);
   }
 
   async updateWorklog(input: {
@@ -510,6 +702,43 @@ export class WorklogService {
 // ---------------------------------------------------------------------------
 // Module-level helpers
 // ---------------------------------------------------------------------------
+
+function normalizeProposal(value: unknown): WorklogProposal {
+  const v = value as Record<string, unknown>;
+  const proposal = (v?.proposal ?? v) as Record<string, unknown>;
+  return {
+    issueKey: String(proposal.issueKey),
+    date: String(proposal.date),
+    durationMinutes: Number(proposal.durationMinutes),
+    description: String(proposal.description),
+    startTime: proposal.startTime ? String(proposal.startTime) : undefined,
+  } as WorklogProposal;
+}
+
+export function extractProposals(input: unknown): WorklogProposal[] {
+  if (Array.isArray(input)) return input.map(normalizeProposal);
+  const v = (input ?? {}) as Record<string, unknown>;
+  const aliases = ['proposals', 'entries', 'items', 'worklogs', 'logs', 'batch'];
+  for (const key of aliases) {
+    const candidate = v[key];
+    if (Array.isArray(candidate) && candidate.length > 0) {
+      return candidate.map(normalizeProposal);
+    }
+  }
+  if (v.proposal !== undefined) return [normalizeProposal(v.proposal)];
+  if (v.issueKey !== undefined && v.date !== undefined && v.durationMinutes !== undefined && v.description !== undefined) {
+    return [
+      {
+        issueKey: String(v.issueKey),
+        date: String(v.date),
+        durationMinutes: Number(v.durationMinutes),
+        description: String(v.description),
+        startTime: v.startTime ? String(v.startTime) : undefined,
+      } as WorklogProposal,
+    ];
+  }
+  return [];
+}
 
 function createApprovalPayload(
   resolved: ResolvedIssue,

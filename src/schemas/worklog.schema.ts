@@ -87,6 +87,9 @@ export const worklogProposalSchema = z.object({
   startTime: startTimeSchema.optional(),
 });
 
+/** Shared alias keys that carry a list of proposals (multi-log support). */
+const proposalListSchema = z.array(worklogProposalSchema).min(1).max(50);
+
 export const previewWorklogInputSchema = z.discriminatedUnion('operation', [
   z
     .object({
@@ -98,18 +101,37 @@ export const previewWorklogInputSchema = z.discriminatedUnion('operation', [
       durationMinutes: durationMinutesSchema.optional(),
       description: descriptionSchema.optional(),
       startTime: startTimeSchema.optional(),
+      // Multi-log (batch) aliases: a list of proposals.
+      proposals: proposalListSchema.optional(),
+      entries: proposalListSchema.optional(),
+      items: proposalListSchema.optional(),
+      worklogs: proposalListSchema.optional(),
+      logs: proposalListSchema.optional(),
+      batch: proposalListSchema.optional(),
     })
     .refine(
-      (data) =>
-        data.proposal !== undefined ||
-        (data.issueKey !== undefined &&
-          data.date !== undefined &&
-          data.durationMinutes !== undefined &&
-          data.description !== undefined),
+      (data) => {
+        const hasList =
+          (data.proposals?.length ?? 0) > 0 ||
+          (data.entries?.length ?? 0) > 0 ||
+          (data.items?.length ?? 0) > 0 ||
+          (data.worklogs?.length ?? 0) > 0 ||
+          (data.logs?.length ?? 0) > 0 ||
+          (data.batch?.length ?? 0) > 0;
+        if (hasList) return true;
+        return (
+          data.proposal !== undefined ||
+          (data.issueKey !== undefined &&
+            data.date !== undefined &&
+            data.durationMinutes !== undefined &&
+            data.description !== undefined)
+        );
+      },
       {
         message:
-          'create: either provide proposal {issueKey, date, durationMinutes, description} ' +
-          'or all four flattened fields (issueKey, date, durationMinutes, description).',
+          'create: either provide proposal {issueKey, date, durationMinutes, description}, ' +
+          'all four flattened fields (issueKey, date, durationMinutes, description), ' +
+          'or one of proposals/entries/items/worklogs/logs/batch as a non-empty array.',
       },
     ),
   z.object({
@@ -128,7 +150,41 @@ export const previewWorklogInputSchema = z.discriminatedUnion('operation', [
   }),
 ]);
 
-export const validateWorklogInputSchema = worklogProposalSchema;
+export const validateWorklogInputSchema = z.object({
+  // single flattened / proposal
+  issueKey: issueKeySchema.optional(),
+  date: isoDateSchema.optional(),
+  durationMinutes: durationMinutesSchema.optional(),
+  description: descriptionSchema.optional(),
+  startTime: startTimeSchema.optional(),
+  proposal: worklogProposalSchema.optional(),
+  // multi aliases
+  proposals: proposalListSchema.optional(),
+  entries: proposalListSchema.optional(),
+  items: proposalListSchema.optional(),
+  worklogs: proposalListSchema.optional(),
+  logs: proposalListSchema.optional(),
+  batch: proposalListSchema.optional(),
+}).refine(
+  (data) => {
+    const hasList =
+      (data.proposals?.length ?? 0) > 0 ||
+      (data.entries?.length ?? 0) > 0 ||
+      (data.items?.length ?? 0) > 0 ||
+      (data.worklogs?.length ?? 0) > 0 ||
+      (data.logs?.length ?? 0) > 0 ||
+      (data.batch?.length ?? 0) > 0;
+    if (hasList) return true;
+    if (data.proposal !== undefined) return true;
+    return (
+      data.issueKey !== undefined &&
+      data.date !== undefined &&
+      data.durationMinutes !== undefined &&
+      data.description !== undefined
+    );
+  },
+  { message: 'Provide a single proposal or one of proposals/entries/items/worklogs/logs/batch.' },
+);
 
 export const checkDuplicateInputSchema = z.object({
   issueKey: issueKeySchema,
@@ -137,11 +193,44 @@ export const checkDuplicateInputSchema = z.object({
   description: z.string().trim().max(DEFAULTS.maxDescriptionLength).optional(),
 });
 
-export const createWorklogInputSchema = worklogProposalSchema.extend({
+export const createWorklogInputSchema = z.object({
+  // single flattened / proposal
+  issueKey: issueKeySchema.optional(),
+  date: isoDateSchema.optional(),
+  durationMinutes: durationMinutesSchema.optional(),
+  description: descriptionSchema.optional(),
+  startTime: startTimeSchema.optional(),
+  proposal: worklogProposalSchema.optional(),
+  // multi aliases
+  proposals: proposalListSchema.optional(),
+  entries: proposalListSchema.optional(),
+  items: proposalListSchema.optional(),
+  worklogs: proposalListSchema.optional(),
+  logs: proposalListSchema.optional(),
+  batch: proposalListSchema.optional(),
   approvalToken: approvalTokenSchema,
   /** Must be explicitly true; a bare call without confirm is rejected. */
   confirm: z.literal(true),
-});
+}).refine(
+  (data) => {
+    const hasList =
+      (data.proposals?.length ?? 0) > 0 ||
+      (data.entries?.length ?? 0) > 0 ||
+      (data.items?.length ?? 0) > 0 ||
+      (data.worklogs?.length ?? 0) > 0 ||
+      (data.logs?.length ?? 0) > 0 ||
+      (data.batch?.length ?? 0) > 0;
+    if (hasList) return true;
+    if (data.proposal !== undefined) return true;
+    return (
+      data.issueKey !== undefined &&
+      data.date !== undefined &&
+      data.durationMinutes !== undefined &&
+      data.description !== undefined
+    );
+  },
+  { message: 'Provide a single proposal or one of proposals/entries/items/worklogs/logs/batch.' },
+);
 
 export const updateWorklogInputSchema = z.object({
   worklogId: z.number().int().positive(),

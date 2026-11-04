@@ -4,7 +4,7 @@ Các tính năng đã được đánh giá nhưng chủ động hoãn lại, kè
 
 ## Bulk edit worklog (nhiều entry cùng lúc)
 
-**Đánh giá (đợt review 2, 2026-11):** HOÃN LÀI — quá lớn so với một đợt an toàn.
+**Trạng thái (0.6.0):** Đã hỗ trợ multi-log cho create/preview/validate (một token bind cả batch, ghi tuần tự, báo cáo từng entry). Bulk *update* (sửa nhiều worklog cùng lúc) vẫn hoãn.
 
 Vì sao lớn:
 
